@@ -1,0 +1,2 @@
+export const MATCHUP_CANDIDATE_ATTEMPTS = 24;
+export const MATCHUP_SEED_STEP = 7919;

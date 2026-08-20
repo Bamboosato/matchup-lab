@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1273" viewBox="0 0 900 1273" role="img" aria-labelledby="title desc">
+  <title id="title">A4 portrait PDF sample for two tennis courts</title>
+  <desc id="desc">Portrait A4 PDF layout sample showing two courts per round with readable nickname labels.</desc>
+  <defs>
+    <style>
+      .bg { fill: #eaf2ff; }
+      .page { fill: #ffffff; stroke: #2563eb; stroke-width: 2; }
+      .head { fill: #dbeafe; }
+      .h1 { fill: #0f172a; font: 700 29px Arial, sans-serif; }
+      .meta { fill: #334155; font: 16px Arial, sans-serif; }
+      .pill { fill: #1d4ed8; }
+      .pill-text { fill: #ffffff; font: 700 14px Arial, sans-serif; }
+      .round { fill: #f8fbff; stroke: #93c5fd; stroke-width: 1.5; }
+      .round-title { fill: #1e3a8a; font: 700 18px Arial, sans-serif; }
+      .court { fill: #ffffff; stroke: #bfdbfe; stroke-width: 1.5; }
+      .court-head { fill: #1d4ed8; }
+      .court-head-text { fill: #ffffff; font: 700 18px Arial, sans-serif; }
+      .pair-a { fill: #0f172a; font: 18px Arial, sans-serif; }
+      .pair-b { fill: #334155; font: 17px Arial, sans-serif; }
+      .rest-card { fill: #eff6ff; stroke: #93c5fd; stroke-width: 1.5; }
+      .rest-title { fill: #1e3a8a; font: 700 15px Arial, sans-serif; }
+      .rest { fill: #334155; font: 15px Arial, sans-serif; }
+      .footer { fill: #64748b; font: 13px Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="900" height="1273"/>
+  <rect class="page" x="42" y="36" width="816" height="1196" rx="10"/>
+
+  <g transform="translate(72 66)">
+    <rect class="head" x="0" y="0" width="756" height="84" rx="8"/>
+    <text class="h1" x="24" y="38">日曜練習 対戦表</text>
+    <text class="meta" x="24" y="65">A4縦 / 2コート / ニックネーム表示 / PDF出力サンプル</text>
+    <rect class="pill" x="610" y="22" width="122" height="32" rx="16"/>
+    <text class="pill-text" x="635" y="43">2コート時</text>
+  </g>
+
+  <g transform="translate(72 184)">
+    <rect class="round" x="0" y="0" width="756" height="206" rx="8"/>
+    <text class="round-title" x="18" y="33">Round 1</text>
+    <g transform="translate(18 52)">
+      <rect class="court" x="0" y="0" width="350" height="96" rx="6"/>
+      <rect class="court-head" x="0" y="0" width="350" height="31" rx="6"/>
+      <text class="court-head-text" x="16" y="22">コート 1</text>
+      <text class="pair-a" x="18" y="58">A: あおい / さくら</text>
+      <text class="pair-b" x="18" y="83">B: みなと / はるき</text>
+    </g>
+    <g transform="translate(388 52)">
+      <rect class="court" x="0" y="0" width="350" height="96" rx="6"/>
+      <rect class="court-head" x="0" y="0" width="350" height="31" rx="6"/>
+      <text class="court-head-text" x="16" y="22">コート 2</text>
+      <text class="pair-a" x="18" y="58">A: ゆうな / けんた</text>
+      <text class="pair-b" x="18" y="83">B: りく / まこと</text>
+    </g>
+    <g transform="translate(18 158)">
+      <rect class="rest-card" x="0" y="0" width="720" height="34" rx="6"/>
+      <text class="rest-title" x="16" y="23">休憩</text>
+      <text class="rest" x="74" y="23">なし</text>
+    </g>
+  </g>
+
+  <g transform="translate(72 408)">
+    <rect class="round" x="0" y="0" width="756" height="206" rx="8"/>
+    <text class="round-title" x="18" y="33">Round 2</text>
+    <g transform="translate(18 52)">
+      <rect class="court" x="0" y="0" width="350" height="96" rx="6"/>
+      <rect class="court-head" x="0" y="0" width="350" height="31" rx="6"/>
+      <text class="court-head-text" x="16" y="22">コート 1</text>
+      <text class="pair-a" x="18" y="58">A: さくら / はるき</text>
+      <text class="pair-b" x="18" y="83">B: あおい / りく</text>
+    </g>
+    <g transform="translate(388 52)">
+      <rect class="court" x="0" y="0" width="350" height="96" rx="6"/>
+      <rect class="court-head" x="0" y="0" width="350" height="31" rx="6"/>
+      <text class="court-head-text" x="16" y="22">コート 2</text>
+      <text class="pair-a" x="18" y="58">A: みなと / なお</text>
+      <text class="pair-b" x="18" y="83">B: ゆうな / まこと</text>
+    </g>
+    <g transform="translate(18 158)">
+      <rect class="rest-card" x="0" y="0" width="720" height="34" rx="6"/>
+      <text class="rest-title" x="16" y="23">休憩</text>
+      <text class="rest" x="74" y="23">けんた、つばさ、ひなた、かおる</text>
+    </g>
+  </g>
+
+  <g transform="translate(72 632)">
+    <rect class="round" x="0" y="0" width="756" height="206" rx="8"/>
+    <text class="round-title" x="18" y="33">Round 3</text>
+    <g transform="translate(18 52)">
+      <rect class="court" x="0" y="0" width="350" height="96" rx="6"/>
+      <rect class="court-head" x="0" y="0" width="350" height="31" rx="6"/>
+      <text class="court-head-text" x="16" y="22">コート 1</text>
+      <text class="pair-a" x="18" y="58">A: けんた / つばさ</text>
+      <text class="pair-b" x="18" y="83">B: ひなた / かおる</text>
+    </g>
+    <g transform="translate(388 52)">
+      <rect class="court" x="0" y="0" width="350" height="96" rx="6"/>
+      <rect class="court-head" x="0" y="0" width="350" height="31" rx="6"/>
+      <text class="court-head-text" x="16" y="22">コート 2</text>
+      <text class="pair-a" x="18" y="58">A: なお / さくら</text>
+      <text class="pair-b" x="18" y="83">B: まこと / あおい</text>
+    </g>
+    <g transform="translate(18 158)">
+      <rect class="rest-card" x="0" y="0" width="720" height="34" rx="6"/>
+      <text class="rest-title" x="16" y="23">休憩</text>
+      <text class="rest" x="74" y="23">みなと、ゆうな、はるき、りく</text>
+    </g>
+  </g>
+
+  <g transform="translate(72 856)">
+    <rect class="round" x="0" y="0" width="756" height="206" rx="8"/>
+    <text class="round-title" x="18" y="33">Round 4</text>
+    <g transform="translate(18 52)">
+      <rect class="court" x="0" y="0" width="350" height="96" rx="6"/>
+      <rect class="court-head" x="0" y="0" width="350" height="31" rx="6"/>
+      <text class="court-head-text" x="16" y="22">コート 1</text>
+      <text class="pair-a" x="18" y="58">A: はるき / つばさ</text>
+      <text class="pair-b" x="18" y="83">B: けんた / みなと</text>
+    </g>
+    <g transform="translate(388 52)">
+      <rect class="court" x="0" y="0" width="350" height="96" rx="6"/>
+      <rect class="court-head" x="0" y="0" width="350" height="31" rx="6"/>
+      <text class="court-head-text" x="16" y="22">コート 2</text>
+      <text class="pair-a" x="18" y="58">A: りく / なお</text>
+      <text class="pair-b" x="18" y="83">B: かおる / ゆうな</text>
+    </g>
+    <g transform="translate(18 158)">
+      <rect class="rest-card" x="0" y="0" width="720" height="34" rx="6"/>
+      <text class="rest-title" x="16" y="23">休憩</text>
+      <text class="rest" x="74" y="23">あおい、さくら、なお、まこと</text>
+    </g>
+  </g>
+
+  <g transform="translate(72 1090)">
+    <rect x="0" y="0" width="756" height="86" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+    <text class="round-title" x="20" y="34">設計メモ</text>
+    <text class="meta" x="20" y="64">休憩カードはコート1+2と同じ横幅。人数が多い場合はカード内で折返して表示する。</text>
+  </g>
+
+  <text class="footer" x="72" y="1186">tennis-organizing-app PDF layout sample / page 1</text>
+</svg>
