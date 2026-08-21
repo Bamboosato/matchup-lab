@@ -42,6 +42,11 @@ type MatchFormat = "doubles" | "singles";
 type AppRoute = "home" | "members" | "doubles" | "singles" | "unknown";
 type SortMode = "registered" | "kana";
 
+const SORT_MODE_OPTIONS: Array<{ label: string; value: SortMode }> = [
+  { label: "新しい順", value: "registered" },
+  { label: "ニックネーム", value: "kana" },
+];
+
 const APP_VERSION = packageJson.version;
 const PARTICIPANT_COUNT_MAX = 30;
 const GENDER_COUNT_MIN = 0;
@@ -1569,6 +1574,7 @@ function MatchupResultPanel(props: {
 
 type CountStepperFieldProps = {
   label: string;
+  labelTone?: "female" | "male";
   value: string;
   numericValue: number;
   min: number;
@@ -1586,6 +1592,7 @@ type CountStepperFieldProps = {
 
 function CountStepperField({
   label,
+  labelTone,
   value,
   numericValue,
   min,
@@ -1606,7 +1613,9 @@ function CountStepperField({
 
   return (
     <div className="count-stepper-field">
-      <label htmlFor={inputId}>{label}</label>
+      <label className={labelTone ? `count-stepper-label count-stepper-label-${labelTone}` : "count-stepper-label"} htmlFor={inputId}>
+        {label}
+      </label>
       <div className={`count-stepper-control ${disabled ? "count-stepper-control-disabled" : ""}`}>
         <button
           aria-label={decrementLabel}
@@ -1682,6 +1691,7 @@ function GuestParticipantCountDropdown(props: {
           <div className="field">
             <CountStepperField
               label="女性人数"
+              labelTone="female"
               value={props.femaleCount}
               numericValue={toDisplayCount(props.femaleCount)}
               min={GENDER_COUNT_MIN}
@@ -1699,6 +1709,7 @@ function GuestParticipantCountDropdown(props: {
           <div className="field">
             <CountStepperField
               label="男性人数"
+              labelTone="male"
               value={props.maleCount}
               numericValue={toDisplayCount(props.maleCount)}
               min={GENDER_COUNT_MIN}
@@ -1793,6 +1804,8 @@ function ParticipantSelectionDropdown(props: {
   selectedMemberIds: string[];
   sortMode: SortMode;
 }) {
+  const participantBodyRef = useRef<HTMLDivElement>(null);
+  const guestCountPanelRef = useRef<HTMLDivElement>(null);
   const selectedCount = props.selectedMemberIds.length;
   const guestCount = toDisplayCount(props.guestFemaleCount) + toDisplayCount(props.guestMaleCount);
   const totalSelectedCount = selectedCount + guestCount;
@@ -1808,65 +1821,53 @@ function ParticipantSelectionDropdown(props: {
   const allSelectableMembersSelected =
     selectableMemberIds.length > 0 && selectableMemberIds.every((memberId) => props.selectedMemberIds.includes(memberId));
 
+  useEffect(() => {
+    const participantBody = participantBodyRef.current;
+    const guestCountPanel = guestCountPanelRef.current;
+
+    if (!participantBody || !guestCountPanel) {
+      return;
+    }
+
+    const syncGuestCountPanelWidth = () => {
+      const firstParticipantCard = participantBody.querySelector<HTMLElement>(".participant-card");
+
+      if (firstParticipantCard) {
+        guestCountPanel.style.width = `${firstParticipantCard.getBoundingClientRect().width}px`;
+      } else {
+        guestCountPanel.style.removeProperty("width");
+      }
+    };
+
+    syncGuestCountPanelWidth();
+    window.addEventListener("resize", syncGuestCountPanelWidth);
+
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(syncGuestCountPanelWidth);
+    resizeObserver?.observe(participantBody);
+
+    const firstParticipantCard = participantBody.querySelector<HTMLElement>(".participant-card");
+    if (firstParticipantCard) {
+      resizeObserver?.observe(firstParticipantCard);
+    }
+
+    return () => {
+      window.removeEventListener("resize", syncGuestCountPanelWidth);
+      resizeObserver?.disconnect();
+    };
+  }, [props.members.length, props.sortMode]);
+
   return (
     <ParticipantSelectionDialogFrame onCancel={props.onCancel} titleId="participant-selection-title">
       <div className="participant-dropdown-header">
         <div className="participant-dropdown-title-row">
-          <h3 id="participant-selection-title">参加メンバー選択（最大30人）</h3>
-          <p className="muted">合計: {totalSelectedCount} / 30</p>
+          <h3 id="participant-selection-title">参加メンバー選択</h3>
+          <p className="muted">合計: {totalSelectedCount} / 30人（ゲスト含む）</p>
         </div>
-        <div className="participant-guest-count-panel">
-          <div className="participant-guest-count-title">ゲスト人数</div>
-          <div className="guest-count-grid participant-guest-count-grid">
-            <div className="field">
-              <CountStepperField
-                label="女性"
-                value={props.guestFemaleCount}
-                numericValue={toDisplayCount(props.guestFemaleCount)}
-                min={GENDER_COUNT_MIN}
-                max={guestFemaleMax}
-                inputTestId="member-guest-female-count-input"
-                decrementTestId="member-guest-female-count-decrement"
-                incrementTestId="member-guest-female-count-increment"
-                decrementLabel="追加女性を1人減らす"
-                incrementLabel="追加女性を1人増やす"
-                onChange={props.onGuestFemaleCountChange}
-                onCommit={() =>
-                  props.onGuestFemaleCountChange(commitCountInput(props.guestFemaleCount, GENDER_COUNT_MIN, guestFemaleMax))
-                }
-                onStep={(delta) =>
-                  props.onGuestFemaleCountChange(stepCountInput(props.guestFemaleCount, GENDER_COUNT_MIN, guestFemaleMax, delta))
-                }
-              />
-            </div>
-            <div className="field">
-              <CountStepperField
-                label="男性"
-                value={props.guestMaleCount}
-                numericValue={toDisplayCount(props.guestMaleCount)}
-                min={GENDER_COUNT_MIN}
-                max={guestMaleMax}
-                inputTestId="member-guest-male-count-input"
-                decrementTestId="member-guest-male-count-decrement"
-                incrementTestId="member-guest-male-count-increment"
-                decrementLabel="追加男性を1人減らす"
-                incrementLabel="追加男性を1人増やす"
-                onChange={props.onGuestMaleCountChange}
-                onCommit={() =>
-                  props.onGuestMaleCountChange(commitCountInput(props.guestMaleCount, GENDER_COUNT_MIN, guestMaleMax))
-                }
-                onStep={(delta) =>
-                  props.onGuestMaleCountChange(stepCountInput(props.guestMaleCount, GENDER_COUNT_MIN, guestMaleMax, delta))
-                }
-              />
-            </div>
-          </div>
-        </div>
-        <div className="actions participant-header-actions">
-          <SortModeSelect onChange={props.onSortModeChange} value={props.sortMode} />
-          <span className="button-title-wrap" title="表示中のメンバーをすべて選択します。">
+        <div className="participant-header-actions">
+          <SortModeMenu className="participant-sort-menu" onChange={props.onSortModeChange} value={props.sortMode} />
+          <div aria-label="一括選択操作" className="participant-selection-bulk-actions" role="group">
             <button
-              className="button button-secondary participant-select-action-button"
+              className="button button-link participant-select-action-button"
               disabled={selectableMemberIds.length === 0 || allSelectableMembersSelected}
               title="表示中のメンバーをすべて選択します。"
               type="button"
@@ -1874,10 +1875,8 @@ function ParticipantSelectionDropdown(props: {
             >
               全選択
             </button>
-          </span>
-          <span className="button-title-wrap" title="選択をすべて解除します。">
             <button
-              className="button button-secondary participant-select-action-button"
+              className="button button-link participant-select-action-button"
               disabled={selectedCount === 0}
               title="選択をすべて解除します。"
               type="button"
@@ -1885,33 +1884,86 @@ function ParticipantSelectionDropdown(props: {
             >
               選択解除
             </button>
-          </span>
+          </div>
         </div>
       </div>
-      <div className="participant-dropdown-body">
+      <div className="participant-dropdown-body" ref={participantBodyRef}>
         {props.members.length === 0 ? (
           <p className="status-message">メンバー未登録です。</p>
         ) : (
           <div className="participant-list">
             {props.members.map((member) => {
               const selected = props.selectedMemberIds.includes(member.id);
+              const genderLabel = member.gender === "female" ? "女性" : "男性";
 
               return (
                 <label className={`participant-card ${selected ? "participant-card-selected" : ""}`} key={member.id}>
-                  <span className="participant-card-name">
-                    <strong title={member.nickname}>{member.nickname}</strong>
-                  </span>
-                  <small className="participant-card-gender">{member.gender === "female" ? "女性" : "男性"}</small>
                   <input
+                    aria-label={`${member.nickname} ${genderLabel}`}
                     checked={selected}
                     onChange={() => props.onToggle(member.id)}
                     type="checkbox"
                   />
+                  <span className="participant-card-name">
+                    <strong title={member.nickname}>{member.nickname}</strong>
+                  </span>
+                  <small className={`participant-card-gender participant-gender-badge participant-gender-${member.gender}`}>
+                    {genderLabel}
+                  </small>
                 </label>
               );
             })}
           </div>
         )}
+      </div>
+      <div className="participant-guest-count-panel" ref={guestCountPanelRef}>
+        <div className="participant-guest-count-title">ゲスト人数</div>
+        <div className="guest-count-grid participant-guest-count-grid">
+          <div className="field">
+            <CountStepperField
+              label="女性"
+              labelTone="female"
+              value={props.guestFemaleCount}
+              numericValue={toDisplayCount(props.guestFemaleCount)}
+              min={GENDER_COUNT_MIN}
+              max={guestFemaleMax}
+              inputTestId="member-guest-female-count-input"
+              decrementTestId="member-guest-female-count-decrement"
+              incrementTestId="member-guest-female-count-increment"
+              decrementLabel="追加女性を1人減らす"
+              incrementLabel="追加女性を1人増やす"
+              onChange={props.onGuestFemaleCountChange}
+              onCommit={() =>
+                props.onGuestFemaleCountChange(commitCountInput(props.guestFemaleCount, GENDER_COUNT_MIN, guestFemaleMax))
+              }
+              onStep={(delta) =>
+                props.onGuestFemaleCountChange(stepCountInput(props.guestFemaleCount, GENDER_COUNT_MIN, guestFemaleMax, delta))
+              }
+            />
+          </div>
+          <div className="field">
+            <CountStepperField
+              label="男性"
+              labelTone="male"
+              value={props.guestMaleCount}
+              numericValue={toDisplayCount(props.guestMaleCount)}
+              min={GENDER_COUNT_MIN}
+              max={guestMaleMax}
+              inputTestId="member-guest-male-count-input"
+              decrementTestId="member-guest-male-count-decrement"
+              incrementTestId="member-guest-male-count-increment"
+              decrementLabel="追加男性を1人減らす"
+              incrementLabel="追加男性を1人増やす"
+              onChange={props.onGuestMaleCountChange}
+              onCommit={() =>
+                props.onGuestMaleCountChange(commitCountInput(props.guestMaleCount, GENDER_COUNT_MIN, guestMaleMax))
+              }
+              onStep={(delta) =>
+                props.onGuestMaleCountChange(stepCountInput(props.guestMaleCount, GENDER_COUNT_MIN, guestMaleMax, delta))
+              }
+            />
+          </div>
+        </div>
       </div>
       <div className="participant-dropdown-actions">
         {props.error ? (
@@ -1931,22 +1983,103 @@ function ParticipantSelectionDropdown(props: {
 }
 
 function SortModeSelect(props: {
+  className?: string;
   onChange: (mode: SortMode) => void;
   showLabel?: boolean;
   value: SortMode;
 }) {
   return (
-    <label className="sort-select-field">
-      {props.showLabel !== false ? <span>並び順</span> : null}
+    <label className={props.className ? `sort-select-field ${props.className}` : "sort-select-field"}>
+      {props.showLabel !== false ? <span>並び順:</span> : null}
       <select
         title="メンバーの表示順を選びます。"
         value={props.value}
         onChange={(event) => props.onChange(event.target.value === "kana" ? "kana" : "registered")}
       >
-        <option value="registered">登録順（新しい順）</option>
-        <option value="kana">アイウエオ順</option>
+        {SORT_MODE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
       </select>
     </label>
+  );
+}
+
+function SortModeMenu(props: {
+  className?: string;
+  onChange: (mode: SortMode) => void;
+  value: SortMode;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const currentOption = SORT_MODE_OPTIONS.find((option) => option.value === props.value) ?? SORT_MODE_OPTIONS[0];
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) {
+        return;
+      }
+      setIsOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className={props.className ? `sort-mode-menu ${props.className}` : "sort-mode-menu"} ref={menuRef}>
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        className="sort-mode-menu-trigger"
+        ref={triggerRef}
+        title="メンバーの並び順を変更"
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span>並び順: {currentOption.label}</span>
+        <ChevronDown aria-hidden="true" className={isOpen ? "chevron-open" : ""} size={15} />
+      </button>
+      {isOpen ? (
+        <div aria-label="並び順の選択" className="sort-mode-menu-popover" role="menu">
+          {SORT_MODE_OPTIONS.map((option) => {
+            const isSelected = props.value === option.value;
+            return (
+              <button
+                aria-checked={isSelected}
+                className={`sort-mode-menu-item ${isSelected ? "sort-mode-menu-item-selected" : ""}`}
+                key={option.value}
+                role="menuitemradio"
+                type="button"
+                onClick={() => {
+                  props.onChange(option.value);
+                  setIsOpen(false);
+                }}
+              >
+                <span>{option.label}</span>
+                {isSelected ? <span aria-hidden="true">✓</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -2233,17 +2366,31 @@ function MemberListPanel(props: {
         {props.members.length === 0 ? (
           <p className="status-message">メンバー未登録です。</p>
         ) : (
-          <div className="member-list">
+          <div aria-label="メンバー一覧" className="member-list" role="table">
+            <div className="member-list-header" role="row">
+              <span role="columnheader">ニックネーム</span>
+              <span role="columnheader">氏名</span>
+              <span role="columnheader">性別</span>
+              <span role="columnheader">備考</span>
+              <span aria-hidden="true" />
+            </div>
             {props.members.map((member) => (
-              <article className="member-card" key={member.id}>
-                <div className="member-main">
-                  <div>
-                    <div className="member-name">{member.nickname}</div>
-                    <div className="muted">{member.fullName || "氏名未入力"}</div>
-                  </div>
-                  <p className="muted member-note">{member.note}</p>
-                  <span className="tag">{member.gender === "female" ? "女性" : "男性"}</span>
-                </div>
+              <article className="member-card" key={member.id} role="row">
+                <strong className="member-list-cell member-list-nickname" role="cell" title={member.nickname}>
+                  {member.nickname}
+                </strong>
+                <span className="member-list-cell member-list-full-name" role="cell" title={member.fullName || "氏名未入力"}>
+                  {member.fullName || "氏名未入力"}
+                </span>
+                <span
+                  className={`participant-card-gender participant-gender-badge participant-gender-${member.gender} member-list-gender`}
+                  role="cell"
+                >
+                  {member.gender === "female" ? "女性" : "男性"}
+                </span>
+                <span className="member-list-cell member-list-note" role="cell" title={member.note || "備考なし"}>
+                  {member.note || "—"}
+                </span>
                 <div className="member-card-menu">
                   <button
                     aria-expanded={openMemberMenuId === member.id}

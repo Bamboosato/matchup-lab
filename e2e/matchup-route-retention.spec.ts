@@ -13,18 +13,177 @@ async function registerMembers(page: Page) {
    await expect(page.getByText(`メンバー一覧（${index}/99）`)).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
  }
+
+  if ((page.viewportSize()?.width ?? 1280) > 860) {
+    const memberList = page.locator(".member-list");
+    await expect(memberList.getByRole("columnheader")).toHaveText(["ニックネーム", "氏名", "性別", "備考"]);
+    const memberSortSelect = page.locator(".member-list-toolbar select");
+    await expect(memberSortSelect.locator("option:checked")).toHaveText("新しい順");
+    await memberSortSelect.selectOption("kana");
+    await expect(memberSortSelect.locator("option:checked")).toHaveText("ニックネーム");
+    await memberSortSelect.selectOption("registered");
+    const firstRowCells = await memberList.locator(".member-card").first().locator('[role="cell"]').evaluateAll((elements) =>
+      elements.map((element) => element.className),
+    );
+    expect(firstRowCells).toEqual([
+      expect.stringContaining("member-list-nickname"),
+      expect.stringContaining("member-list-full-name"),
+      expect.stringContaining("participant-gender-badge"),
+      expect.stringContaining("member-list-note"),
+    ]);
+  } else {
+    const memberList = page.locator(".member-list");
+    await expect(memberList.locator(".member-list-header")).toBeHidden();
+    await expect(memberList.locator(".member-card").first().locator(".member-list-note")).toBeVisible();
+  }
 }
 
-async function selectAllMembers(page: Page) {
+async function selectAllMembers(page: Page, options: { expectCompactGuestCount?: boolean } = {}) {
   const contentWidthBefore = await page.evaluate(() => document.body.clientWidth);
   await page.getByRole("button", { name: "メンバー選択" }).click();
   const contentWidthAfter = await page.evaluate(() => document.body.clientWidth);
   expect(contentWidthAfter).toBe(contentWidthBefore);
-  const selectionDialog = page.getByRole("dialog", { name: "参加メンバー選択（最大30人）" });
+  const selectionDialog = page.getByRole("dialog", { name: "参加メンバー選択" });
   await expect(selectionDialog).toBeVisible();
+  await expect(selectionDialog).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  const dialogWidth = await selectionDialog.evaluate((element) => element.getBoundingClientRect().width);
+  expect(dialogWidth).toBeLessThanOrEqual(480);
   await expect(selectionDialog.locator(".participant-card")).toHaveCount(4);
+  const participantBody = selectionDialog.locator(".participant-dropdown-body");
+  await expect(participantBody).toHaveCSS("border-bottom-style", "solid");
+  await expect(participantBody).toHaveCSS("border-bottom-width", "1px");
+  const bodyPaddingRight = await participantBody.evaluate((element) => Number.parseFloat(getComputedStyle(element).paddingRight));
+  expect(bodyPaddingRight).toBeGreaterThanOrEqual(18);
+  await expect(participantBody).toHaveCSS("box-shadow", /3px/);
+  await expect(selectionDialog.locator(".participant-selection-bulk-actions")).toBeVisible();
+  const selectAllButton = selectionDialog.getByRole("button", { name: "全選択" });
+  await expect(selectAllButton).toHaveCSS("text-decoration-line", "none");
+  await expect(selectAllButton).toHaveCSS("color", "rgb(29, 78, 216)");
+  const title = selectionDialog.locator("#participant-selection-title");
+  const total = selectionDialog.locator(".participant-dropdown-title-row .muted");
+  await expect(total).toHaveText(
+    "合計: 0 / 30人（ゲスト含む）",
+  );
+  const titleAndTotalPositions = await Promise.all(
+    [title, total].map((element) =>
+      element.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return { left: rect.left, top: rect.top };
+      }),
+    ),
+  );
+  expect(titleAndTotalPositions[0].left).toBeLessThan(titleAndTotalPositions[1].left);
+  expect(titleAndTotalPositions[1].top).toBeLessThanOrEqual(titleAndTotalPositions[0].top + 1);
+  const sortModeMenu = selectionDialog.locator(".participant-sort-menu");
+  const sortModeTrigger = sortModeMenu.getByRole("button", { name: /並び順/ });
+  await sortModeTrigger.click();
+  await expect(sortModeMenu.getByRole("menu")).toBeVisible();
+  await sortModeMenu.getByRole("menuitemradio", { name: "新しい順" }).click();
+  await expect(sortModeTrigger).toHaveText("並び順: 新しい順");
+  await sortModeTrigger.click();
+  await sortModeMenu.getByRole("menuitemradio", { name: "ニックネーム" }).click();
+  await expect(sortModeTrigger).toHaveText("並び順: ニックネーム");
+  await expect(sortModeMenu.getByRole("menu")).toHaveCount(0);
+  const firstCard = selectionDialog.locator(".participant-card").first();
+  await expect(firstCard).toHaveCSS("border-radius", "0px");
+  await expect(firstCard.locator(".participant-card-gender")).toHaveClass(/participant-gender-badge/);
+  const nicknameColumnRatio = await firstCard.evaluate((element) => {
+    const cardStyle = getComputedStyle(element);
+    const cardRect = element.getBoundingClientRect();
+    const nameRect = element.querySelector<HTMLElement>(".participant-card-name")?.getBoundingClientRect();
+    const contentWidth = cardRect.width - Number.parseFloat(cardStyle.paddingLeft) - Number.parseFloat(cardStyle.paddingRight);
+    return (nameRect?.width ?? 0) / contentWidth;
+  });
+  expect(nicknameColumnRatio).toBeGreaterThanOrEqual(0.6);
+  expect(nicknameColumnRatio).toBeLessThanOrEqual(0.7);
+  const badgeRightGap = await firstCard.evaluate((element) => {
+    const cardStyle = getComputedStyle(element);
+    const cardRect = element.getBoundingClientRect();
+    const badgeRect = element.querySelector<HTMLElement>(".participant-card-gender")?.getBoundingClientRect();
+    const contentRight = cardRect.right - Number.parseFloat(cardStyle.paddingRight);
+    return contentRight - (badgeRect?.right ?? contentRight);
+  });
+  expect(badgeRightGap).toBeLessThanOrEqual(1);
+  const firstCardChildTags = await firstCard.evaluate((element) =>
+    Array.from(element.children).map((child) => child.tagName.toLowerCase()),
+  );
+  expect(firstCardChildTags).toEqual(["input", "span", "small"]);
+  await firstCard.click();
+  await expect(firstCard.locator("input")).toBeChecked();
+  await firstCard.click();
+  await expect(firstCard.locator("input")).not.toBeChecked();
+  const guestCountPanel = selectionDialog.locator(".participant-dropdown-body + .participant-guest-count-panel");
+  await expect(guestCountPanel).toBeVisible();
+  await expect(guestCountPanel).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(guestCountPanel).toHaveCSS("border-style", "none");
+  const panelWidth = await guestCountPanel.evaluate((element) => element.getBoundingClientRect().width);
+  const cardWidth = await selectionDialog.locator(".participant-card").first().evaluate((element) => element.getBoundingClientRect().width);
+  expect(Math.abs(panelWidth - cardWidth)).toBeLessThanOrEqual(1);
+  const guestTitle = guestCountPanel.locator(".participant-guest-count-title");
+  const nicknameLeft = await firstCard.locator(".participant-card-name").evaluate((element) => element.getBoundingClientRect().left);
+  const guestTitleLeft = await guestTitle.evaluate((element) => element.getBoundingClientRect().left);
+  expect(Math.abs(guestTitleLeft - nicknameLeft)).toBeLessThanOrEqual(1);
+  const firstGuestField = guestCountPanel.locator(".count-stepper-field").first();
+  const guestTitleCenter = await guestTitle.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.top + rect.height / 2;
+  });
+  const guestGridCenter = await firstGuestField.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.top + rect.height / 2;
+  });
+  expect(Math.abs(guestTitleCenter - guestGridCenter)).toBeLessThanOrEqual(1);
+  const guestTitleRight = await guestTitle.evaluate((element) => element.getBoundingClientRect().right);
+  const guestFieldRects = await guestCountPanel.locator(".count-stepper-field").evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right };
+    }),
+  );
+  const titleToFemaleGap = (guestFieldRects[0]?.left ?? 0) - guestTitleRight;
+  const femaleToMaleGap = (guestFieldRects[1]?.left ?? 0) - (guestFieldRects[0]?.right ?? 0);
+  expect(Math.abs(titleToFemaleGap - femaleToMaleGap)).toBeLessThanOrEqual(1);
+  expect(Math.max(titleToFemaleGap, femaleToMaleGap)).toBeLessThanOrEqual(40);
+  const panelBottom = await guestCountPanel.evaluate((element) => element.getBoundingClientRect().bottom);
+  const footerTop = await selectionDialog.locator(".participant-dropdown-actions").evaluate((element) => element.getBoundingClientRect().top);
+  expect(footerTop - panelBottom).toBeGreaterThanOrEqual(12);
+  const titleFont = await guestTitle.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { family: style.fontFamily, size: style.fontSize, weight: style.fontWeight };
+  });
+  const nicknameFont = await selectionDialog.locator(".participant-card-name strong").first().evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { family: style.fontFamily, size: style.fontSize, weight: style.fontWeight };
+  });
+  expect(titleFont).toEqual(nicknameFont);
+  const femaleField = guestCountPanel.locator(".count-stepper-field").first();
+  const femaleLabel = femaleField.locator("label");
+  const femaleControl = femaleField.locator(".count-stepper-control");
+  await expect(femaleLabel).toHaveClass(/count-stepper-label-female/);
+  await expect(guestCountPanel.locator(".count-stepper-field").nth(1).locator("label")).toHaveClass(/count-stepper-label-male/);
+  const femaleLabelCenter = await femaleLabel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.top + rect.height / 2;
+  });
+  const femaleControlWidth = await femaleControl.evaluate((element) => element.getBoundingClientRect().width);
+  expect(femaleControlWidth).toBeLessThanOrEqual(88);
+  const femaleControlCenter = await femaleControl.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.top + rect.height / 2;
+  });
+  expect(Math.abs(femaleLabelCenter - femaleControlCenter)).toBeLessThanOrEqual(1);
+  if (options.expectCompactGuestCount) {
+    const guestFieldTops = await guestCountPanel.locator(".count-stepper-field").evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().top),
+    );
+    expect(Math.abs((guestFieldTops[0] ?? 0) - (guestFieldTops[1] ?? 0))).toBeLessThanOrEqual(1);
+  }
+  await guestCountPanel.getByRole("button", { name: "追加女性を1人増やす" }).click();
+  await expect(guestCountPanel.getByRole("textbox", { name: "女性" })).toHaveValue("1");
+  await guestCountPanel.getByRole("button", { name: "追加女性を1人減らす" }).click();
+  await expect(guestCountPanel.getByRole("textbox", { name: "女性" })).toHaveValue("0");
   await selectionDialog.getByRole("button", { name: "全選択" }).click();
-  await expect(page.getByText(/合計: 4 \/ 30/)).toBeVisible();
+  await expect(page.getByText("合計: 4 / 30人（ゲスト含む）")).toBeVisible();
   await selectionDialog.getByRole("button", { name: "OK" }).click();
   await expect(selectionDialog).toHaveCount(0);
   await expect(page.getByText("選択中").locator("..", { hasText: "4人" })).toBeVisible();
@@ -70,6 +229,14 @@ test("keeps the latest doubles and singles results across member navigation", as
   await expect(page.getByRole("heading", { name: "Route doubles" })).toBeVisible();
 });
 
+test("keeps guest count controls compact on a narrow viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await registerMembers(page);
+
+  await page.goto("/matchups/doubles");
+  await selectAllMembers(page, { expectCompactGuestCount: true });
+});
+
 test("removes deleted members from the selected participant count", async ({ page }) => {
   await registerMembers(page);
 
@@ -84,7 +251,7 @@ test("removes deleted members from the selected participant count", async ({ pag
   await page.getByRole("link", { name: "メンバー" }).click();
   await expect(page).toHaveURL(/\/members$/);
 
-  const routeP1Card = page.getByRole("article").filter({ hasText: "RouteP1" });
+  const routeP1Card = page.locator(".member-card").filter({ hasText: "RouteP1" });
   await routeP1Card.hover();
   await routeP1Card.locator(".member-card-menu-trigger").click();
   await routeP1Card.getByRole("menuitem", { name: "削除" }).click();
@@ -123,7 +290,7 @@ test("keeps the content width stable when the mobile menu locks scrolling", asyn
 test("deletes a member only after confirmation", async ({ page }) => {
   await registerMembers(page);
 
-  const routeP1Card = page.getByRole("article").filter({ hasText: "RouteP1" });
+  const routeP1Card = page.locator(".member-card").filter({ hasText: "RouteP1" });
   const routeP1MenuButton = routeP1Card.locator(".member-card-menu-trigger");
   await page.mouse.move(0, 0);
   await expect(routeP1MenuButton).toHaveCSS("opacity", "0");
