@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+const APP_ICON_VERSION = "matchuplab-v1";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "MatchupLab",
@@ -12,12 +14,12 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "ja",
     icons: [
       {
-        src: "/icons/icon-192.png",
+        src: `/icons/icon-192.png?iconv=${APP_ICON_VERSION}`,
         sizes: "192x192",
         type: "image/png",
       },
       {
-        src: "/icons/icon-512.png",
+        src: `/icons/icon-512.png?iconv=${APP_ICON_VERSION}`,
         sizes: "512x512",
         type: "image/png",
       },

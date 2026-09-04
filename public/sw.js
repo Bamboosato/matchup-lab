@@ -2,7 +2,7 @@
 
 const STATIC_CACHE_PREFIX = "matchuplab-static-";
 const LEGACY_STATIC_CACHE_PREFIX = "tennis-organizing-static-";
-const STATIC_CACHE_POLICY_VERSION = "v1";
+const STATIC_CACHE_POLICY_VERSION = "v3";
 const STATIC_CACHE_NAME = `${STATIC_CACHE_PREFIX}${STATIC_CACHE_POLICY_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -11,12 +11,11 @@ const PRECACHE_URLS = [
   "/matchups/doubles",
   "/matchups/singles",
   "/manifest.webmanifest",
-  "/brand/logo-bamboosato.webp?brandv=bamboosato-v1",
-  "/icons/icon-192.png?iconv=crop-v1",
-  "/icons/icon-512.png?iconv=crop-v1",
+  "/icons/icon-192.png?iconv=matchuplab-v1",
+  "/icons/icon-512.png?iconv=matchuplab-v1",
   "/fonts/NotoSansJP-VF.ttf?v=20260512",
 ];
-const CACHEABLE_PATH_PREFIXES = ["/_next/static/", "/brand/", "/icons/", "/fonts/"];
+const CACHEABLE_PATH_PREFIXES = ["/_next/static/", "/icons/", "/fonts/"];
 
 function isCacheableStaticRequest(request) {
   if (request.method !== "GET") {

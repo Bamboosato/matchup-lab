@@ -11,10 +11,24 @@ test("serves a valid web manifest", async ({ request }) => {
   expect(manifest.display).toBe("standalone");
   expect(manifest.icons).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ src: "/icons/icon-192.png" }),
-      expect.objectContaining({ src: "/icons/icon-512.png" }),
+      expect.objectContaining({
+        src: "/icons/icon-192.png?iconv=matchuplab-v1",
+        sizes: "192x192",
+        type: "image/png",
+      }),
+      expect.objectContaining({
+        src: "/icons/icon-512.png?iconv=matchuplab-v1",
+        sizes: "512x512",
+        type: "image/png",
+      }),
     ]),
   );
+
+  for (const icon of ["/icons/icon-192.png", "/icons/icon-512.png"]) {
+    const iconResponse = await request.get(icon);
+    expect(iconResponse.ok()).toBe(true);
+    expect(iconResponse.headers()["content-type"]).toContain("image/png");
+  }
 });
 
 test("serves the service worker with update-safe headers", async ({ request }) => {
@@ -26,10 +40,11 @@ test("serves the service worker with update-safe headers", async ({ request }) =
 
   const serviceWorker = await response.text();
   expect(serviceWorker).toContain("/_next/static/");
-  expect(serviceWorker).toContain("/brand/");
   expect(serviceWorker).toContain("/icons/");
   expect(serviceWorker).toContain("/fonts/");
-  expect(serviceWorker).toContain('STATIC_CACHE_POLICY_VERSION = "v1"');
+  expect(serviceWorker).not.toContain("/brand/");
+  expect(serviceWorker).not.toContain("logo-bamboosato");
+  expect(serviceWorker).toContain('STATIC_CACHE_POLICY_VERSION = "v3"');
   expect(serviceWorker).not.toContain("tennis-organizing-static-v1.0.0");
 });
 
@@ -94,10 +109,8 @@ test("caches static assets without caching API responses", async ({ page }) => {
     }
 
     const staticUrl = `/icons/icon-192.png?sw-test=${Date.now()}`;
-    const brandLogoUrl = `/brand/logo-bamboosato.webp?sw-test=${Date.now()}`;
     const nonStaticUrl = `/api/local-only-test?sw-test=${Date.now()}`;
     await fetch(staticUrl);
-    await fetch(brandLogoUrl);
     await fetch(nonStaticUrl).catch(() => undefined);
 
     const cacheNames = await caches.keys();
@@ -110,9 +123,6 @@ test("caches static assets without caching API responses", async ({ page }) => {
 
     const staticAssetCached = Boolean(
       staticCache && (await staticCache.match(staticUrl)),
-    );
-    const brandLogoCached = Boolean(
-      staticCache && (await staticCache.match(brandLogoUrl)),
     );
     const runtimeResponseCached = Boolean(
       staticCache && (await staticCache.match(nonStaticUrl)),
@@ -128,7 +138,6 @@ test("caches static assets without caching API responses", async ({ page }) => {
     return {
       supported: true,
       staticAssetCached,
-      brandLogoCached,
       runtimeResponseCached,
       staticCacheName,
     };
@@ -136,12 +145,11 @@ test("caches static assets without caching API responses", async ({ page }) => {
 
   expect(result.supported).toBe(true);
   expect(result.staticAssetCached).toBe(true);
-  expect(result.brandLogoCached).toBe(true);
   expect(result.runtimeResponseCached).toBe(false);
   expect(result.staticCacheName).toContain("matchuplab-static-");
 });
 
-test("shows the app splash once in standalone PWA mode", async ({ page }) => {
+test("does not show the removed base-app splash in standalone PWA mode", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -160,24 +168,38 @@ test("shows the app splash once in standalone PWA mode", async ({ page }) => {
 
   await page.goto("/");
 
-  const splash = page.getByTestId("pwa-splash-screen");
-  await expect(splash).toBeVisible();
-  await expect(page.getByTestId("pwa-splash-logo")).toHaveAttribute(
-    "src",
-    "/brand/logo-bamboosato.webp?brandv=bamboosato-v1",
-  );
-  await expect(splash).toBeHidden({ timeout: 5_000 });
-
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        window.sessionStorage.getItem("matchuplab-pwa-splash-shown-v1"),
-      ),
-    )
-    .toBe("shown");
-
-  await page.reload();
   await expect(page.getByTestId("pwa-splash-screen")).toHaveCount(0);
+  await expect(page.locator('img[src*="/brand/"]')).toHaveCount(0);
+});
+
+test("shows the PWA favicon beside the app title", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const path of ["/", "/members", "/matchups/doubles", "/matchups/singles"]) {
+      await page.goto(path);
+
+      const brand = page.locator(".app-brand");
+      const icon = brand.locator(".app-brand-icon");
+      const title = brand.locator(".eyebrow");
+
+      await expect(brand).toContainText("MatchupLab");
+      await expect(icon).toBeVisible();
+      await expect(icon).toHaveAttribute(
+        "src",
+        "/matchuplab-icon.png?iconv=matchuplab-v1",
+      );
+      await expect(icon).toHaveAttribute("alt", "");
+
+      const [iconBox, titleBox] = await Promise.all([icon.boundingBox(), title.boundingBox()]);
+      expect(iconBox).not.toBeNull();
+      expect(titleBox).not.toBeNull();
+      expect(iconBox!.x + iconBox!.width).toBeLessThanOrEqual(titleBox!.x);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+  }
 });
 
 test("keeps app icon URLs stable across app updates", async ({ page }) => {
@@ -191,11 +213,8 @@ test("keeps app icon URLs stable across app updates", async ({ page }) => {
     );
 
   expect(iconHrefs.length).toBeGreaterThan(0);
-  expect(
-    iconHrefs.some((href) => href.includes("/matchuplab-icon.png")),
-  ).toBe(true);
-  expect(
-    iconHrefs.some((href) => href.includes("/matchuplab-icon.png")),
-  ).toBe(true);
   expect(iconHrefs.every((href) => !href.includes("assetv="))).toBe(true);
+  expect(iconHrefs.every((href) => href.includes("/matchuplab-icon.png"))).toBe(
+    true,
+  );
 });

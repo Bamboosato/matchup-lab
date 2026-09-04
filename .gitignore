@@ -40,3 +40,5 @@ Thumbs.db
 
 # Test temp
 .playwright-mcp
+
+.vercel

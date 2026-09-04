@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { AppClientShell } from "@/app/AppClientShell";
-import { PwaSplashScreen } from "@/components/pwa/PwaSplashScreen";
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
+import { APP_FAVICON_SRC } from "@/lib/constants/assets";
 import "./globals.css";
-
-const MATCHUPLAB_ICON_SRC = "/matchuplab-icon.png";
 
 export const metadata: Metadata = {
   title: "MatchupLab",
@@ -18,13 +16,13 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: MATCHUPLAB_ICON_SRC,
+        url: APP_FAVICON_SRC,
         type: "image/png",
       },
     ],
     apple: [
       {
-        url: MATCHUPLAB_ICON_SRC,
+        url: APP_FAVICON_SRC,
         type: "image/png",
       },
     ],
@@ -35,7 +33,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ja">
       <body>
-        <PwaSplashScreen />
         <AppClientShell>{children}</AppClientShell>
         <ServiceWorkerRegistration />
       </body>
