@@ -346,3 +346,75 @@ test("places member backup actions on their respective panels", async ({ page })
   expect(download.suggestedFilename()).toMatch(/^matchuplab-members-\d{4}-\d{2}-\d{2}\.json$/);
   await expect(page.getByText(/件のメンバーをバックアップしました。/)).toHaveCount(0);
 });
+
+const memberBackup = {
+  schemaVersion: 1,
+  appVersion: "1.1.0",
+  exportedAt: "2026-08-21T00:00:00.000Z",
+  members: [
+    {
+      id: "backup-member-1",
+      nickname: "復元メンバー",
+      fullName: "復元 テスト",
+      gender: "female",
+      note: "バックアップ由来",
+      sortKeyKana: "ふくげんめんばー",
+      status: "active",
+      displayOrder: 1,
+      createdAt: "2026-08-21T00:00:00.000Z",
+      updatedAt: "2026-08-21T00:00:00.000Z",
+    },
+  ],
+};
+
+async function selectMemberBackup(page: Page) {
+  await page.locator("#member-backup-file").setInputFiles({
+    name: "matchuplab-members.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(memberBackup)),
+  });
+}
+
+test("uses an app dialog for member backup restore confirmation", async ({ page }) => {
+  let nativeDialogShown = false;
+  page.on("dialog", async (dialog) => {
+    nativeDialogShown = true;
+    await dialog.dismiss();
+  });
+
+  await page.goto("/members");
+  await selectMemberBackup(page);
+
+  const restoreDialog = page.getByRole("dialog", { name: "メンバーを復元します" });
+  await expect(restoreDialog).toBeVisible();
+  await expect(restoreDialog).toContainText("MatchupLab");
+  await expect(restoreDialog).toContainText("1件のバックアップを復元します。");
+  await expect(restoreDialog).toContainText("現在のメンバーデータはバックアップの内容に置き換わります。");
+
+  await restoreDialog.getByRole("button", { name: "キャンセル" }).click();
+  await expect(restoreDialog).toHaveCount(0);
+  await expect(page.getByText("メンバー未登録です。", { exact: true })).toBeVisible();
+  expect(nativeDialogShown).toBe(false);
+});
+
+test("restores the selected member backup after app confirmation", async ({ page }) => {
+  let nativeDialogShown = false;
+  page.on("dialog", async (dialog) => {
+    nativeDialogShown = true;
+    await dialog.dismiss();
+  });
+
+  await page.goto("/members");
+  await selectMemberBackup(page);
+
+  const restoreDialog = page.getByRole("dialog", { name: "メンバーを復元します" });
+  await restoreDialog.getByRole("button", { name: "復元" }).click();
+
+  await expect(page.getByText("1件のメンバーを復元しました。", { exact: true })).toBeVisible();
+  await expect(page.getByText("復元メンバー", { exact: true })).toBeVisible();
+  await expect(page.getByText("メンバー一覧（1/99）", { exact: true })).toBeVisible();
+  await expect(page.getByText("1件のメンバーを復元しました。", { exact: true })).toHaveCount(0, {
+    timeout: 5000,
+  });
+  expect(nativeDialogShown).toBe(false);
+});

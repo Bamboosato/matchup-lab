@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import packageJson from "../../package.json";
@@ -32,10 +33,11 @@ import {
   subscribeMembers,
   updateMember,
 } from "@/features/members/memberRepository";
-import { parseMemberBackup, serializeMemberBackup } from "@/features/members/memberJson";
+import { parseMemberBackup, serializeMemberBackup, type MemberBackup } from "@/features/members/memberJson";
 import { emptyMemberForm, type Member, type MemberFormInput } from "@/features/members/model";
 import { useMatchupPdfExport } from "@/hooks/useMatchupPdfExport";
 import { PwaStatus } from "@/components/pwa/PwaStatus";
+import { APP_FAVICON_SRC } from "@/lib/constants/assets";
 
 type MatchupMode = "standard" | "sameGenderPriority" | "mixedDoublesPriority";
 type MatchFormat = "doubles" | "singles";
@@ -253,6 +255,9 @@ export function AppClientShell({ children }: { children: ReactNode }) {
   const [memberError, setMemberError] = useState("");
   const [memberBackupError, setMemberBackupError] = useState("");
   const [memberBackupNotice, setMemberBackupNotice] = useState("");
+  const [memberBackupConfirmation, setMemberBackupConfirmation] = useState<
+    { backup: MemberBackup; count: number } | null
+  >(null);
   const [sortMode, setSortMode] = useState<SortMode>("registered");
   const [matchupStates, setMatchupStates] = useState<Record<MatchFormat, MatchupScreenState>>(
     createInitialMatchupStates,
@@ -292,6 +297,20 @@ export function AppClientShell({ children }: { children: ReactNode }) {
       window.clearTimeout(timer);
     };
   }, [isMatchupCompleteToastVisible]);
+
+  useEffect(() => {
+    if (!memberBackupNotice) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setMemberBackupNotice("");
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [memberBackupNotice]);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -347,6 +366,7 @@ export function AppClientShell({ children }: { children: ReactNode }) {
   async function handleImportMemberBackup(file: File) {
     setMemberBackupError("");
     setMemberBackupNotice("");
+    setMemberBackupConfirmation(null);
 
     const result = parseMemberBackup(await file.text());
     if (result.state === "error") {
@@ -354,16 +374,20 @@ export function AppClientShell({ children }: { children: ReactNode }) {
       return;
     }
 
-    const confirmed = window.confirm(
-      `現在のメンバーデータを置き換えて、${result.count}件のバックアップを復元します。よろしいですか？`,
-    );
-    if (!confirmed) {
+    setMemberBackupConfirmation({ backup: result.backup, count: result.count });
+  }
+
+  async function confirmMemberBackupRestore() {
+    const confirmation = memberBackupConfirmation;
+    if (!confirmation) {
       return;
     }
 
+    setMemberBackupConfirmation(null);
+
     try {
-      await replaceAllMembers(result.backup.members);
-      setMemberBackupNotice(`${result.count}件のメンバーを復元しました。`);
+      await replaceAllMembers(confirmation.backup.members);
+      setMemberBackupNotice(`${confirmation.count}件のメンバーを復元しました。`);
     } catch (error) {
       setMemberBackupError(toMessage(error, "バックアップを復元できませんでした。"));
     }
@@ -782,6 +806,13 @@ export function AppClientShell({ children }: { children: ReactNode }) {
           onConfirm={confirmMemberDelete}
         />
       ) : null}
+      {appRoute === "members" && memberBackupConfirmation ? (
+        <MemberBackupRestoreDialog
+          count={memberBackupConfirmation.count}
+          onCancel={() => setMemberBackupConfirmation(null)}
+          onConfirm={confirmMemberBackupRestore}
+        />
+      ) : null}
       {appRoute === "members" && memberBackupNotice ? (
         <div className="fixed-toast member-backup-toast" role="status" aria-live="polite">
           {memberBackupNotice}
@@ -857,6 +888,15 @@ function AppHeaderNav(props: { activeRoute: AppRoute }) {
           <div className="app-header-main">
             <div className="app-brand-area">
               <Link className="app-brand" href="/" onClick={closeMenus}>
+                <Image
+                  alt=""
+                  aria-hidden="true"
+                  className="app-brand-icon"
+                  height={36}
+                  src={APP_FAVICON_SRC}
+                  unoptimized
+                  width={36}
+                />
                 <span className="eyebrow">MatchupLab</span>
               </Link>
               <div className="app-brand-nav">
@@ -1445,6 +1485,62 @@ function MemberDeleteDialog(props: {
           </button>
           <button className="button button-danger" type="button" onClick={props.onConfirm}>
             削除
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MemberBackupRestoreDialog(props: {
+  count: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const onCancel = props.onCancel;
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCancel();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div
+      className="dialog-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onCancel();
+        }
+      }}
+    >
+      <section
+        aria-describedby="member-backup-restore-description"
+        aria-labelledby="member-backup-restore-title"
+        aria-modal="true"
+        className="confirmation-dialog member-backup-restore-dialog"
+        role="dialog"
+      >
+        <div>
+          <p className="section-kicker">MatchupLab</p>
+          <h2 id="member-backup-restore-title">メンバーを復元します</h2>
+        </div>
+        <p id="member-backup-restore-description">
+          現在のメンバーデータを置き換えて、<strong>{props.count}件</strong>のバックアップを復元します。
+        </p>
+        <p className="dialog-warning">現在のメンバーデータはバックアップの内容に置き換わります。</p>
+        <div className="dialog-actions">
+          <button className="button button-secondary" type="button" onClick={onCancel}>
+            キャンセル
+          </button>
+          <button className="button button-primary" type="button" onClick={props.onConfirm}>
+            復元
           </button>
         </div>
       </section>
