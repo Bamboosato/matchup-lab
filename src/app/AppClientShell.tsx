@@ -2437,23 +2437,25 @@ function MemberListPanel(props: {
           <SortModeSelect onChange={props.onSortModeChange} showLabel={false} value={props.sortMode} />
           <div className="member-list-actions">
             <button
+              aria-label="バックアップ"
               className="button button-secondary"
               title="メンバー一覧をファイルに保存"
               type="button"
               onClick={props.onExportBackup}
             >
-              <FileDown size={18} />
-              バックアップ
+              <FileDown aria-hidden="true" size={18} />
+              <span className="member-action-label">バックアップ</span>
             </button>
             <MemberBackupRestoreButton onImport={props.onImportBackup} />
             <button
+              aria-label="新規追加"
               className="button button-primary"
               title="新しいメンバーを登録"
               type="button"
               onClick={props.onCreate}
             >
               <Plus aria-hidden="true" size={18} />
-              新規追加
+              <span className="member-action-label">新規追加</span>
             </button>
           </div>
         </div>
@@ -2543,13 +2545,14 @@ function MemberBackupRestoreButton(props: { onImport: (file: File) => void }) {
   return (
     <>
       <button
+        aria-label="復元"
         className="button button-secondary"
         title="バックアップからメンバー一覧を復元"
         type="button"
         onClick={() => inputRef.current?.click()}
       >
-        <FileUp size={18} />
-        復元
+        <FileUp aria-hidden="true" size={18} />
+        <span className="member-action-label">復元</span>
       </button>
       <input
         ref={inputRef}

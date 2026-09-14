@@ -2225,16 +2225,30 @@ h2 {
   }
 
   .member-list-toolbar {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .member-list-toolbar .sort-select-field {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
   }
 
   .member-list-actions {
-    flex-wrap: wrap;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    gap: 6px;
     justify-content: flex-end;
+  }
+
+  .member-list-actions .button {
+    flex: 0 0 36px;
+    min-width: 36px;
+    padding-inline: 0;
+    width: 36px;
+  }
+
+  .member-action-label {
+    display: none;
   }
 
   .condition-field-narrow input {
