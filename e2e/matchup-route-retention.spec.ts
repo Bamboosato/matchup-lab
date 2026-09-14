@@ -347,6 +347,39 @@ test("places member backup actions on their respective panels", async ({ page })
   await expect(page.getByText(/件のメンバーをバックアップしました。/)).toHaveCount(0);
 });
 
+test("keeps member actions in one compact row on narrow screens", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/members");
+
+  const toolbar = page.locator(".member-list-toolbar");
+  const sortField = toolbar.locator(".sort-select-field");
+  const actions = toolbar.locator(".member-list-actions");
+  const actionLabels = ["バックアップ", "復元", "新規追加"];
+
+  await expect(toolbar).toHaveCSS("flex-wrap", "nowrap");
+  await expect(actions).toHaveCSS("flex-wrap", "nowrap");
+  for (const label of actionLabels) {
+    const button = page.getByRole("button", { name: label, exact: true });
+    await expect(button).toHaveAttribute("aria-label", label);
+    await expect(button.locator(".member-action-label")).toBeHidden();
+    await expect(button).toHaveCSS("width", "36px");
+  }
+
+  const toolbarBox = await toolbar.boundingBox();
+  const sortBox = await sortField.boundingBox();
+  const actionsBox = await actions.boundingBox();
+  expect(toolbarBox).not.toBeNull();
+  expect(sortBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  expect(Math.abs((actionsBox?.y ?? 0) - (sortBox?.y ?? 0))).toBeLessThan(1);
+  expect((actionsBox?.x ?? 0) + (actionsBox?.width ?? 0)).toBeLessThanOrEqual(
+    (toolbarBox?.x ?? 0) + (toolbarBox?.width ?? 0) + 1,
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  );
+});
+
 const memberBackup = {
   schemaVersion: 1,
   appVersion: "1.1.0",
