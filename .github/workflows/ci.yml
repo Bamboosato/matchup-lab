@@ -29,7 +29,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        # Temporarily skip npm audit while the registry advisory endpoint is unavailable.
+        # Run the audit separately so it has its own failure status and report.
         run: npm ci --no-audit --prefer-offline --progress=false
 
       - name: Lint
@@ -41,6 +41,12 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Test security audit policy
+        run: npm run test:security
+
+      - name: Audit dependencies
+        run: npm run audit:security
+
       - name: Build
         run: npm run build
 
@@ -48,4 +54,13 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: E2E
-        run: npm run test:e2e
+        run: npm run test:e2e -- --workers=1
+
+      - name: Upload dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit
+          path: .security-audit/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore

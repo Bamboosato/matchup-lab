@@ -1,0 +1,13 @@
+{
+  "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+  "expires": "2026-10-20T00:00:00Z",
+  "owner": "Bamboosato/matchup-lab maintainers",
+  "reason": "No published braces fix. Only the recorded development ESLint glob chain is temporarily permitted; production dependencies, critical findings, and every other advisory remain blocking.",
+  "packages": {
+    "braces": "3.0.3",
+    "micromatch": "4.0.8",
+    "fast-glob": "3.3.1",
+    "@next/eslint-plugin-next": "16.3.8",
+    "eslint-config-next": "16.3.8"
+  }
+}

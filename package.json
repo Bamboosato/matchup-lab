@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:security": "node --test scripts/security-audit-policy.test.mjs",
+    "audit:security": "node scripts/security-audit.mjs",
     "test:e2e": "playwright test",
     "test:watch": "vitest"
   },
@@ -15,7 +17,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^1.14.0",
-    "next": "16.3.1",
+    "next": "16.3.8",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^4.4.3"
@@ -27,11 +29,11 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "16.3.8",
     "fake-indexeddb": "^6.2.5",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "postcss": "8.5.26"

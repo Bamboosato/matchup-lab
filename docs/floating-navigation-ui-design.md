@@ -1,3 +1,5 @@
+> **旧構成資料**：本書は `tennis-organizing-app` の認証付きナビゲーション設計を記録した履歴資料です。現在のMatchupLabに認証・アカウント画面はありません。現行画面は [screen-design.md](./screen-design.md#34-現行実装2026-10-06)、実装状況は [implementation-status.md](./implementation-status.md) を参照してください。
+
 # Topパネル フローティングナビゲーション UI改善 設計仕様書
 
 作成日: 2026-05-29
