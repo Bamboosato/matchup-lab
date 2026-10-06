@@ -4,9 +4,11 @@
 
 本書は [要件定義書](./requirements.md) を実装へ落とし込むための設計書である。
 
-画面構造、ナビゲーション、レスポンシブ境界、画面状態、画面受入基準は [画面設計書](./screen-design.md) に定義する。
+最終整合確認日: 2026-10-06。現行実装に合わせた設計と残る改善案を区別する。実装根拠・未検証事項は [implementation-status.md](./implementation-status.md) を参照する。
 
-MatchupLabは、`tennis-organizing-app` の基準コミットを土台に、Phase 1でFirebaseメンバーリポジトリと外部API proxyをIndexedDB・ローカル生成へ置き換えた状態である。本書はPhase 1の実装と、Phase 2以降の変更境界を定義する。
+現行画面の構造、ナビゲーション、レスポンシブ境界は [画面設計書の3.4節](./screen-design.md#34-現行実装2026-10-06) に定義する。他の節は当初の画面改善案を含む。
+
+MatchupLabは、基準版のFirebaseメンバーリポジトリと外部API proxyをIndexedDB・ローカル生成へ置き換え、UI・PWAブランドも変更済みである。AppClientShellのファイル分割、処理中操作の保護、性能・実機の最終検証などは残る。
 
 参照元は次のローカルリポジトリとコミットに固定する。
 
@@ -18,7 +20,7 @@ MatchupLabは、`tennis-organizing-app` の基準コミットを土台に、Phas
 
 Firebase上の既存データは存在しない前提とし、データ移行アダプターや移行画面は作成しない。
 
-## 2. 目標アーキテクチャ
+## 2. アーキテクチャ
 
 ```text
 ┌──────────────────────────────────────────────┐
@@ -28,7 +30,7 @@ Firebase上の既存データは存在しない前提とし、データ移行ア
                     │ UI events / state
 ┌───────────────────▼──────────────────────────┐
 │ Application layer                             │
-│  member use cases                             │
+│  UIからmember repositoryを呼び出す             │
 │  matchup use case                             │
 │  JSON import/export                            │
 │  PDF export                                    │
@@ -63,7 +65,7 @@ src/
     members/
       model.ts
       memberRepository.ts
-      indexedDbMemberRepository.ts
+      memberRepository.test.ts
       memberJson.ts
       memberJson.test.ts
     matchmaking/
@@ -72,12 +74,12 @@ src/
       model/
       utils/
     matchups/
+      generateMatchupLocally.ts
       formatParticipantDisplayName.ts
       pdf/
   hooks/
     useMatchupPdfExport.ts
   lib/
-    storage/
     constants/
   components/
     pwa/
@@ -110,15 +112,23 @@ const MEMBER_STORE_NAME = "members";
 
 ```ts
 export type MemberRepository = {
-  list(): Promise<Member[]>;
-  add(input: MemberFormInput): Promise<Member>;
-  update(id: string, input: MemberFormInput): Promise<Member>;
-  deactivate(id: string): Promise<void>;
-  replaceAll(members: Member[]): Promise<void>;
+  listMembers(): Promise<Member[]>;
+  addMember(input: MemberFormInput, activeMemberCount: number): Promise<Member>;
+  updateMember(memberId: string, input: MemberFormInput): Promise<Member>;
+  deleteMember(memberId: string): Promise<void>;
+  replaceAllMembers(members: Member[]): Promise<void>;
+  subscribeMembers(
+    onChange: (members: Member[]) => void,
+    onError?: (error: Error) => void,
+  ): () => void;
 };
 ```
 
-IDは `crypto.randomUUID()` を基本とし、日時はISO 8601 UTC文字列とする。`displayOrder` は登録順を表す整数とし、並び替えで連続値へ再採番してもよいが、IDを変更してはならない。
+IDは `crypto.randomUUID()` を基本とし、アプリが作る日時はISO 8601 UTC文字列とする。`displayOrder` は登録時に既存最大値+1を採番する。表示順切替は配列のソートだけで、保存順の再採番やドラッグ操作ではない。
+
+`deleteMember` は `store.delete(memberId)` による完全削除であり、inactiveへの変更ではない。新規登録はactiveとし、JSON互換用のinactive・deactivatedAtは残す。一覧・参加者候補にはactiveだけを表示する。再表示API・UIはない。
+
+購読は同じrepositoryインスタンス内のリスナー通知である。他タブの変更を自動通知するBroadcastChannel等は実装していない。有効人数上限の登録チェックは呼び出し側から渡された件数を使うため、複数タブの同時登録で上限を保証する設計にはなっていない。
 
 ### 4.2 初期化とエラー
 
@@ -126,7 +136,7 @@ IDは `crypto.randomUUID()` を基本とし、日時はISO 8601 UTC文字列と�
 2. `onupgradeneeded` でバージョンごとのマイグレーションを実行する。
 3. DBオープン、request、transactionの各エラーをPromiseへ変換する。
 4. `blocked` は他タブの旧接続が原因であることを表示する。
-5. 保存失敗時はUIへ利用者向けエラーを返し、部分保存を成功扱いにしない。
+5. request／transactionの失敗をUIへ返す。書き込みの成功はtransaction完了を待って判定し、その後リスナーへ通知する。通知用の再読み込みは書き込みtransactionの外で行う。
 
 将来のスキーマ変更では、既存storeを破壊せず、バージョン番号を増やした段階的マイグレーションを追加する。
 
@@ -138,8 +148,8 @@ JSON復元では、既存DBを先に消去しない。
 2. JSON parse、スキーマ、バージョン、必須項目、型、ID重複を検証する。
 3. 検証成功後に全置換確認ダイアログを表示する。
 4. `readwrite` transaction内で `clear()` と全件 `put()` を実行する。
-5. 件数とID集合を確認してtransactionを完了する。
-6. abort/error時はtransactionの原子性により旧データを維持する。
+5. 書き込みtransaction完了後、別のreadonly transactionで件数を確認し、リスナーへ通知する。ID集合の一致は検証していない。
+6. 書き込みtransactionのabort/error時は旧データを維持する。完了後の件数確認・通知で失敗した場合には、すでに置換済みの可能性があり、旧データへ自動で戻す処理はない。
 
 ## 5. JSON設計
 
@@ -156,11 +166,13 @@ type MemberBackup = {
 
 JSONには組合せ結果、開催名、Guest、画面入力、PDF履歴を含めない。空の `members` は「0件への全置換」として有効な入力とする。
 
+JSONファイル名は `matchuplab-members-YYYY-MM-DD.json`。日付は `toISOString().slice(0, 10)` によるUTC日付で、時刻は含まない。メタデータの `exportedAt` にはISO日時を保存する。同日の書き出しは同じファイル名になる。
+
 ### 5.2 バリデーション結果
 
 ```ts
 type ImportResult =
-  | { state: "success"; members: Member[]; count: number }
+  | { state: "success"; backup: MemberBackup; count: number }
   | { state: "error"; code: ImportErrorCode; message: string };
 
 type ImportErrorCode =
@@ -171,13 +183,13 @@ type ImportErrorCode =
   | "BACKUP_MEMBER_INVALID";
 ```
 
-エラーコードはテストとログの切り分けに使用し、画面には利用者が理解できる日本語メッセージを表示する。JSONファイルには個人情報が含まれる可能性があるため、選択前と復元完了後に注意書きを表示する。
+実装の型名は `MemberImportResult` と `MemberImportErrorCode` である。エラーコードはテストの切り分けに使用し、画面には日本語メッセージを表示する。必須項目、性別・状態の列挙値、表示順の非負整数、重複ID、有効99人以下を検証する。日時は非空文字列で、ISO形式・日時の妥当性、ニックネーム10文字以内は検証しない。JSONには個人情報が含まれることを復元確認ダイアログで案内する。
 
 ## 6. 組合せロジック移植設計
 
 ### 6.1 移植対象
 
-`tennis-matchup-app` の基準コミットから、次の純粋ロジックを移植する。
+`tennis-matchup-app` の基準コミットから、次の純粋ロジックを移植済みである。
 
 - `model/types.ts`
 - `model/limits.ts`
@@ -190,7 +202,7 @@ type ImportErrorCode =
 - `domain/calculateScore.ts`
 - `domain/updateStats.ts`
 - `utils/seededRandom.ts`
-- 上記に対応する単体テストとfixture
+- 上記に対応する単体テスト（移植元fixtureとの完全一致検証は本書だけでは確認できない）
 
 PDF、API管理画面、API認証、Firebase Admin、共有URL、継続ラウンド生成は本フェーズの移植対象に含めない。
 
@@ -203,7 +215,7 @@ function generateMatchupUseCase(
 ): MatchupResult;
 ```
 
-画面は入力状態を `MatchConditionInput` へ変換し、ブラウザ側でseedを生成してこのユースケースを呼び出す。結果は `MatchupResult` として画面状態に保持し、IndexedDBへ保存しない。
+画面は `generateMatchupLocally` を経由し、ブラウザ側でseedを生成してユースケースを同期呼び出しする。結果は `MatchupResult` として形式別の画面状態に保持し、IndexedDBへ保存しない。
 
 ### 6.3 形式別ルール
 
@@ -223,8 +235,9 @@ function generateMatchupUseCase(
 - 移植元の候補seed生成間隔、候補数、スコア比較順を変更しない。
 - 同一入力、同一seed、同一ロジックバージョンで同一結果を得る。
 - `generatedAt` は比較から除外する。
-- fixtureでは条件、参加者順、seed、ラウンド、休憩者、コート割当、スコアを比較する。
-- 移植元との完全一致が難しい場合は、差異を隠さず、出力正規化後の同等性とスコア制約の検証へ切り替える判断をADRに残す。
+- 候補は基準seedから7919刻みで24個生成する。totalScore、genderPreferencePenalty、encounterPenalty、sameTeammatePenalty、sameOpponentPenalty、seedの順で昇順比較する。
+- seed指定UIは提供しない。再度の「対戦表作成」で新しい基準seedを生成する。同じ組合せが再度選ばれる可能性はある。
+- 移植元とのfixture完全一致を検証する場合は、条件、参加者順、seed、ラウンド、休憩者、コート割当、スコアを比較し、差異を記録する（残る検証方針）。
 
 ## 7. 画面状態設計
 
@@ -247,13 +260,15 @@ loading
             └─ result → generating（再作成）
 ```
 
-オンライン／オフラインは上記に重なる環境状態として扱う。オフラインになっただけで入力や結果を破棄しない。Service Worker更新は、保存中・復元中・生成中に自動適用せず、利用者操作で適用する。
+オンライン／オフラインは上記に重なる環境状態として扱い、通信切断だけで入力や結果を破棄しない。Service Worker更新は利用者操作で適用するが、保存中・復元中等の状態をPwaStatusへ渡して更新を禁止する仕組みはない。
 
 ### 7.2 セッション状態
 
 シングルスとダブルスの条件・選択・結果は別の状態領域へ保持する。同じセッションで画面遷移して戻った場合は状態を保持するが、ブラウザリロード時はメンバー以外を初期化する。
 
-生成中は生成ボタン、再作成ボタン、条件変更による競合操作を無効化する。Promise完了後に現在の形式とrequest tokenを確認し、古い非同期結果が新しい結果を上書きしないようにする。
+形式ごとの `isMatchupGenerating` で生成ボタンを制御し、同期生成の結果をその形式へ保存する。専用の再作成ボタン、Web Worker、非同期request tokenはない。処理中表示が描画されることや長時間停止しないことは別途性能検証が必要である。
+
+メンバー購読時に存在しなくなったactive IDを、両形式の確定・仮選択から除外する。生成済み結果は参加者のスナップショットを持つため、削除・復元によって過去の表示結果そのものを再生成することはない。
 
 ## 8. UI・ルーティング設計
 
@@ -262,7 +277,7 @@ loading
 | Route | 役割 |
 | --- | --- |
 | `/` | アプリ説明と各機能への導線 |
-| `/members` | メンバー登録、編集、非表示、並び替え |
+| `/members` | メンバー登録、編集、完全削除、表示順切替、JSON |
 | `/matchups/doubles` | ダブルス条件入力、結果、PDF |
 | `/matchups/singles` | シングルス条件入力、結果、PDF |
 
@@ -270,7 +285,7 @@ loading
 
 ### 8.2 UI状態
 
-すべての非同期操作に次の状態を設ける。
+次の状態を設計観点として扱う。すべての非同期操作に共通の状態管理・競合防止が実装されているという意味ではない。現行表示と残課題は画面設計書3.4節に記載する。
 
 - 初期化中
 - 入力可能
@@ -284,7 +299,7 @@ loading
 
 状態は色、アイコン、テキスト、ARIA属性の組合せで伝える。disabled要素の説明が必要な場合は、無効化理由を近接テキストまたはtooltipで示す。
 
-### 8.3 `draw-lab` 参照方針
+### 8.3 `draw-lab` 参照方針（当初の参考案）
 
 `D:\work_codex\draw-lab` のローカル実装を参照し、次を再利用可能な設計知として取り込む。
 
@@ -300,19 +315,31 @@ loading
 
 ### 9.1 キャッシュ境界
 
-キャッシュ対象はアプリシェル、Next.jsの静的JavaScript／CSSチャンク、マニフェスト、アイコン、ブランド画像、PDF生成に必要なフォントとする。メンバーデータ、JSONファイル、APIレスポンス、Firebase応答はキャッシュしない。
+`public/sw.js` は `matchuplab-static-v3` を使用する。v3はキャッシュ方針の手動バージョンで、package.jsonのバージョンやビルドIDから自動生成しない。
+
+| 対象 | 現行方針 |
+| --- | --- |
+| `/`、`/members`、`/matchups/doubles`、`/matchups/singles` | installで事前取得。同一originのGET navigationはnetwork first、通信失敗時は当該URL→`/`→503応答の順にfallback |
+| `/manifest.webmanifest` | installで事前取得 |
+| `/icons/icon-192.png?iconv=matchuplab-v1`、512px版 | installで事前取得。`/icons/`配下はstale while revalidate |
+| `/fonts/NotoSansJP-VF.ttf?v=20260512` | installで事前取得。`/fonts/`配下はstale while revalidate |
+| `/_next/static/` | 実際のGET取得時にstale while revalidate。installで全チャンクを列挙していない |
+| `/matchuplab-icon.png`、`/favicon.ico` | 現行Service Workerの明示的な事前取得・静的prefix対象に含まれない |
+| API・JSONファイル・メンバーデータ | 専用のキャッシュ処理を行わない。メンバーはIndexedDBへ保存 |
+
+静的リクエストは同一originのGETのみを対象とし、Rangeは除外する。navigationは同一originのGET全体を対象とするため、将来個人データを含むサーバーHTMLを追加するときは対象URLの再検討が必要である。
 
 ### 9.2 更新処理
 
-1. キャッシュ名にアプリバージョンまたはビルドバージョンを含める。
-2. 新Service Workerのinstall時に必要な静的資産を準備する。
-3. activate時に旧バージョンの不要キャッシュを削除する。
-4. 更新可能表示を出し、利用者が安全なタイミングで更新する。
-5. 更新後に古いJavaScriptと新しいHTMLが混在しないことを確認する。
+1. productionのページload後に `/sw.js` をscope `/`、`updateViaCache: "none"` で登録する。登録失敗は画面利用を妨げない。
+2. installで `cache.addAll` を行う。失敗はcatchされるため、登録だけではオフライン準備成功を保証しない。
+3. waiting WorkerがあればPwaStatusで更新通知を表示する。「更新」で `SKIP_WAITING` を送り、controllerchangeで再読み込みする。自動再読み込みや「後で」ボタンはない。
+4. activateで `matchuplab-static-` と旧 `tennis-organizing-static-` の現行名以外を削除し、`clients.claim()` を実行する。
+5. `/sw.js` はnext.config.tsでno-storeを含むヘッダーを配信する。ビルドごとのキャッシュ分離、更新応答のタイムアウト、未保存状態の保護は残課題である。
 
 ### 9.3 オフライン前提
 
-初回アクセスにはネットワークが必要であり、一度も資産を取得していない端末はオフライン起動できない。オフラインでは「ネットワークがない」ことと「IndexedDBが利用できない」ことを別の状態として表示する。
+初回アクセスにはネットワークが必要であり、一度も資産を取得していない端末はオフライン起動できない。必要な静的チャンクは事前に該当画面を開くなどして取得する。PwaStatusのオフライン表示とIndexedDB操作エラーは別に表示する。すべての端末・キャッシュ状態でのオフライン動作は未検証である。
 
 ## 10. PDF設計
 
@@ -323,11 +350,13 @@ loading
 - ダブルス：1コートにペアAとペアBを表示する。
 - シングルス：1コートに `player1 vs player2` を表示する。
 - 休憩者、ラウンド、開催名、MatchupLab名を表示する。
-- PDFファイル名に形式と日時を含める。
+- A4縦。フッターにMatchupLabと `ページ番号 / 総ページ数` を表示する。
+- ファイル名は `開催名_人数人_面数面_モード-matchup.pdf`。開催名なしは `MatchupLab`、ダブルスのモードは通常／同性／混合、シングルスは「シングルス」とする。日時は含めない。
+- 同じ条件で書き出した場合、同じファイル名になる。例：`MatchupLab_4人_1面_通常-matchup.pdf`。
 
 ## 11. エラー・セキュリティ設計
 
-### 11.1 エラー境界
+### 11.1 エラー境界（分類と表示方針）
 
 | 境界 | 内部エラー | UI表示 |
 | --- | --- | --- |
@@ -342,7 +371,7 @@ loading
 
 ### 11.2 Firebase・API撤去
 
-最終状態から次を削除する。
+次は現行ソースと依存パッケージから削除済みである。
 
 - `firebase` packageとFirebase Client SDK初期化
 - `src/lib/firebase/client.ts`
@@ -352,17 +381,19 @@ loading
 - `MATCHUP_API_BASE_URL`、`MATCHUP_API_KEY`
 - 認証状態、認証画面、Firebaseエラー分岐
 
-削除は、IndexedDBリポジトリとローカル生成のテストが通った後に行う。
+CIとPlaywright設定には旧Firebaseのダミー環境変数、package.jsonには旧package名、AppClientShellには固定の `user = { isAnonymous: false }` と到達しない匿名分岐が残る。認証機能として使用しているわけではなく、これらの整理は今回の文書変更の対象外である。
 
 ## 12. テスト設計
 
-### 12.1 単体・統合
+### 12.1 単体・統合の検証観点
 
 - Member model：必須項目、trim、status、日時、ID生成
-- IndexedDB repository：CRUD、再読み込み、空DB、transaction失敗、blocked、全置換
+- IndexedDB repository：登録・更新・完全削除、再読み込み、空DB、transaction失敗、blocked、全置換
 - JSON：正常、空、破損、未対応バージョン、重複ID、型不正、全置換失敗
 - Matchmaking domain：形式、モード、seed再現性、休憩、公平性、コート、最大条件
 - PDF：シングルス、ダブルス、未使用コート、休憩者、日本語フォント、Blob出力
+
+列挙した観点のすべてが自動テストで網羅されているという意味ではない。実際のテストファイルと検証範囲は [実装状況](./implementation-status.md) と [開発・デプロイ手順](./deployment.md) を参照する。
 
 ### 12.2 E2E
 
@@ -402,14 +433,14 @@ Phase 3  リリース判定
 | --- | --- | --- | --- | --- |
 | Phase 0 | 完了 | 基準コミット、依存関係、既存テスト | MatchupLabへの初期取り込み | 基準版を再現可能にビルド・テストできる |
 | Phase 1 / STEP1 | 完了 | `features/matchmaking`、IndexedDB repository、JSON境界、Service Worker、PDFのローカル利用 | 認証・Firestore・外部APIを除くデータ経路と生成経路 | コア機能がローカル・オフラインで完結する |
-| Phase 2 / STEP2 | 未着手 | `AppClientShell`分割、画面コンポーネント、CSS、manifest、PDF・JSON文言 | UI、表示文言、競技固定表現 | MatchupLabのUIと競技に依存しない表現になる |
-| Phase 3 | 未着手 | E2E、実機、性能計測、Service Worker更新確認 | リリース判定用の検証環境と証跡 | 既知の未確認条件がなく、完了条件を判定できる |
+| Phase 2 / STEP2 | UI・ブランド実装済み、ファイル分割等は未実装 | 画面コンポーネント、CSS、manifest、PDF・JSON文言 | UI、表示文言、競技固定表現 | 未実装の改善案と表示検証を別途確認する |
+| Phase 3 | 一部検証済み、最終判定未完了 | E2E、実機、性能計測、Service Worker更新確認 | リリース判定用の検証環境と証跡 | 未確認条件を明示し、完了条件を判定する |
 
 ### 13.3 フェーズ間の依存関係
 
 - Phase 1のローカルデータモデルと生成ユースケースを確定するまで、Phase 2のUI文言や画面分割を最終確定しない。
 - IndexedDB repositoryとJSON全置換のテストを通過したため、Firebase repositoryを削除済みである。
-- ローカル生成の単体・ブラウザ確認を通過したため、外部API Routeを削除済みである。PDFのオフライン実機確認は残課題とする。
+- ローカル生成の単体・ブラウザ確認を通過したため、外部API Routeを削除済みである。要件書にChromiumのオフラインPDF確認記録があるが、モバイル実機確認は残課題とする。
 - Phase 1のService Worker境界が確定するまで、Phase 2のPWA名・アイコン・キャッシュ名を最終確定しない。
 - Phase 3で基準端末・ブラウザ・ネットワーク条件を固定し、同一実機のテストを並列実行しない。
 
