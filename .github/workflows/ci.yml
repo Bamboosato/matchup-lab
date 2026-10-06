@@ -62,4 +62,5 @@ jobs:
         with:
           name: dependency-audit
           path: .security-audit/*.json
+          include-hidden-files: true
           if-no-files-found: ignore

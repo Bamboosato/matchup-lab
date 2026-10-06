@@ -59,7 +59,7 @@ CIのインストールは `npm ci --no-audit --prefer-offline --progress=false`
 
 未修正の `GHSA-vfj7-8cjw-p6xm` に限り、[security-audit-exception.json](../security-audit-exception.json) のbraces 3.0.3、micromatch 4.0.8、fast-glob 3.3.1、@next/eslint-plugin-next 16.3.8、eslint-config-next 16.3.8を2026-10-20 09:00 JSTまで例外化する。lockfileの `dev: true`、版、ルートの `node_modules/<package>` 配置、viaの根拠が一致する場合だけ許可し、Criticalは許可しない。期限の自動延長はしない。対応手順・残るリスクは [対応結果](./security-audit-response-result.md) に記録する。
 
-監査件数・例外適用をActionsログへ表示し、生のJSONを `.security-audit/production.json` と `full.json`、判定を `policy.json` に保存する。実行開始時にレポートを初期化し、失敗時に古い成功結果を残さない。最後の `if: always()` で3ファイルを `dependency-audit` artifactへ保存する。監査前の失敗でレポートがなければアップロードを省略する。
+監査件数・例外適用をActionsログへ表示し、生のJSONを `.security-audit/production.json` と `full.json`、判定を `policy.json` に保存する。実行開始時にレポートを初期化し、失敗時に古い成功結果を残さない。最後の `if: always()` で3ファイルを `dependency-audit` artifactへ保存する。隠しディレクトリが既定で除外されるため `include-hidden-files: true` を指定し、対象パスを監査JSONだけに限定する。監査前の失敗でレポートがなければアップロードを省略する。
 
 参考にした `tennis-organizing-app` の独立監査・artifact保存・限定例外の方針を採用した。期限はMatchupLab固有で、参照先のFirebase SDK検証は追加していない。生の `npm audit --include=dev --audit-level=low` は例外判定をしないため、既知のHigh 5件が残る間は終了コード1になる。監査の公式仕様は [npm audit](https://docs.npmjs.com/cli/v11/commands/npm-audit/) を参照する。
 

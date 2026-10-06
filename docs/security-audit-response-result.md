@@ -53,7 +53,7 @@ eslint-config-next 16.3.8
 
 本番監査の検出は例外なく失敗させる。全依存でも、lockfileの `dev: true`、正確な版、`node_modules/<package>` 配置、viaをたどった根拠が記録したアドバイザリだけであることを確認する。Critical、別アドバイザリ、追加配置、版変更、期限一致以降は失敗する。監査通信・子プロセス失敗、不正JSON、形式・件数不整合、設定欠落、レポート作成失敗も成功扱いにしない。
 
-生のレポートを `.security-audit/production.json` と `full.json`、判定を `policy.json` へ保存し、件数と例外対象・期限をログへ表示する。レポートは実行開始時に初期化し、前回の成功を誤って流用しない。Actionsの `dependency-audit` artifactは `if: always()` で保存する。ローカルレポートはgit対象外。
+生のレポートを `.security-audit/production.json` と `full.json`、判定を `policy.json` へ保存し、件数と例外対象・期限をログへ表示する。レポートは実行開始時に初期化し、前回の成功を誤って流用しない。Actionsの `dependency-audit` artifactは `if: always()` で保存する。隠しディレクトリの監査JSONを保存するため `include-hidden-files: true` を指定する。アップロード対象は `.security-audit/*.json` に限定し、他の隠しファイルを含めない。ローカルレポートはgit対象外。
 
 期限前に上流の修正版を確認し、親依存とlockfileを更新して両監査を再実行する。5件を解消した場合は、例外ファイル・例外分岐・関連テストを一緒に整理する。ファイルだけ削除すると現行判定は失敗する。期限の自動延長はしない。期限後も当該検出が残ればCIは失敗する。修正済みで全依存0件なら、古い例外が期限切れでも成功する。
 
