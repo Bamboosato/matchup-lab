@@ -7,7 +7,8 @@ import { resolve, sep } from "node:path";
 import { evaluateAudits } from "./security-audit-policy.mjs";
 
 const advisory = "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm";
-const expires = "2026-10-20T00:00:00Z";
+const expires = "2026-10-27T00:00:00Z";
+const recordedException = JSON.parse(readFileSync(new URL("../security-audit-exception.json", import.meta.url), "utf8"));
 const versions = {
   braces: "3.0.3",
   micromatch: "4.0.8",
@@ -52,7 +53,7 @@ test("allows the specific dev advisory and every recorded dependency-derived par
 test("passes a fully fixed tree even after the old exception expires", () => {
   const input = fixture();
   input.full = audit();
-  input.now = new Date("2026-10-21T00:00:00Z");
+  input.now = new Date(Date.parse(expires) + 1);
   assert.deepEqual(evaluateAudits(input), { ok: true, blocked: [], excepted: [] });
 });
 
@@ -63,6 +64,10 @@ for (const [label, now, expected] of [
 ]) {
   test(`applies the expiry boundary ${label} the deadline`, () => {
     assert.equal(evaluateAudits({ ...fixture(), now }).ok, expected);
+  });
+  test(`applies the committed exception ${label} the deadline`, () => {
+    assert.equal(recordedException.expires, expires);
+    assert.equal(evaluateAudits({ ...fixture(), exception: recordedException, now }).ok, expected);
   });
 }
 
