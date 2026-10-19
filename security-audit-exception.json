@@ -1,6 +1,6 @@
 {
   "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-  "expires": "2026-10-20T00:00:00Z",
+  "expires": "2026-10-27T00:00:00Z",
   "owner": "Bamboosato/matchup-lab maintainers",
   "reason": "No published braces fix. Only the recorded development ESLint glob chain is temporarily permitted; production dependencies, critical findings, and every other advisory remain blocking.",
   "packages": {

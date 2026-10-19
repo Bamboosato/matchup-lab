@@ -1,5 +1,7 @@
 # npm audit検出への対応結果
 
+最新の再評価は [6. 2026-10-19の短期延長](#6-2026-10-19の短期延長) を参照。現在の例外期限は **2026-10-27 09:00 JST（2026-10-27T00:00:00Z）**。第1〜5章は2026-10-06時点の対応・検証記録であり、当時の期限と未実施事項を含む。
+
 実施日: 2026-10-06。対象: MatchupLab。承認された [対応案](./security-audit-response-plan.md) に沿って依存更新とCI監査ポリシーを実装した。本書はPR作成前のローカル検証記録であり、以下の実施・未実施範囲はその時点を指す。GitHub上でのCI・マージ・配備の結果は、対応するPRとActionsの記録で確認する。
 
 ## 1. 結果
@@ -41,7 +43,7 @@
 - [security-audit-policy.test.mjs](../scripts/security-audit-policy.test.mjs)：判定・実コマンド起動・障害処理の25テスト。
 - [ci.yml](../.github/workflows/ci.yml)：監査テスト、監査、常時artifact保存。インストール後、build前に監査する。
 
-例外期限は **2026-10-20 09:00 JST（2026-10-20T00:00:00Z）**。対象は次のルート配置の開発依存だけである。
+当初の例外期限は **2026-10-20 09:00 JST（2026-10-20T00:00:00Z）**。対象は次のルート配置の開発依存だけである。
 
 ```text
 eslint-config-next 16.3.8
@@ -107,3 +109,47 @@ E2Eは**対象ケースのみ**を選択。Next.js共通基盤更新の影響が
 - Firefox／WebKit、iOS Safari、モバイル実機、性能p95、保存容量・権限拒否、複数タブ競合、更新中の保存操作は未実施。単体テストの保存失敗確認を実ブラウザーの容量制限試験とは扱わない。
 - Vitestには将来のVite native config loaderに関する設定互換性警告が残る。現在の実行は終了0で、今回この設定形式は変更していない。
 - 通常のローカル実行ではNext.jsやNodeテストの子プロセス起動が `EPERM` になったため、同じコマンドを制限外で実行して成功した。分類は環境制限。CIの実環境成功を代替する証明ではない。
+
+## 6. 2026-10-19の短期延長
+
+利用者の明示承認に基づき、期限を2026-10-20T00:00:00Zから **2026-10-27T00:00:00Z（10月27日09:00 JST）** へ1週間延長する。対象GHSA、5パッケージの版・配置・開発依存条件、Critical・本番・別advisoryの拒否条件は変更しない。自動延長は導入しない。修正版公開、依存経路変更、追加検出があれば再評価し、期限到達時はCIが失敗する。
+
+### 判断根拠と生監査
+
+remote mainは `78f88c1c05ac06c49cd191f471d58e9d0bab4eb1`。open PRはなく、元の `C:\work_codex\matchup-lab` に残る未追跡の `.playwright-cli/` と `output/` は保護し、別のcloneで作業した。適用対象のAGENTS.mdは見つからなかった。
+
+2026-10-19 UTCに新規取得した生監査は次のとおり。例外適用前の結果とポリシーの成功は区別する。
+
+| 実行 | 生の結果 | 終了コード |
+| --- | --- | --- |
+| `npm audit --omit=dev --audit-level=low --json` | production 0件、全severity 0 | 0 |
+| `npm audit --audit-level=low --json` | full High 5件、その他0 | 1 |
+
+fullの実アドバイザリは [GHSA-vfj7-8cjw-p6xm / CVE-2026-93687](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) だけ。親4件は同じadvisoryの派生検出で、viaは第3章の経路と一致した。lockfileの5件はすべて同じ版・ルート配置・`dev: true` であり、追加配置はない。
+
+GitHub Advisoryはbraces <=3.0.3が対象、Patched versionsはNone。npm registryのlatestもbraces 3.0.3である。Next / eslint-config-next / @next/eslint-plugin-nextのlatestは16.4.2だが、最新eslint-config-next → plugin 16.4.2 → fast-glob 3.3.1の依存が残る。したがって最新版への追従だけでは解消しない。npmの `fixAvailable` はeslint-config-next **14.2.35へのmajor変更**を提案しており、braces修正版の公開を示さない。今回package.json・lockfile・アプリを変更しない。
+
+[get-root-dirs.ts（v16.3.8）](https://github.com/vercel/next.js/blob/v16.3.8/packages/eslint-plugin-next/src/utils/get-root-dirs.ts) とインストール済みの配布コードを確認した。`settings.next.rootDir` が文字列または配列の場合にfast-globを呼び、未指定時はcwdを返す。現eslint.config.mjsと読み込まれる設定にrootDir指定はない。これは現設定での到達性を限定する根拠であり、脆弱性の修正や開発ツール全体の安全性の保証ではない。設定に外部由来のパターンを追加する場合は再評価する。
+
+生JSONは隔離作業ディレクトリの兄弟 `security-recheck/production.json` と `full.json` に保持した。初回取得分のSHA-256はそれぞれ `7ba453ba5acb1bdf1e6e41a8e09e988fe5b1fceb5f7e469bebb96fea3a75467f`、`968f482e250782fe909672ac3d355c57f287821b24db719c52348c347d02b46b`。CIの再監査は既存どおり `.security-audit/*.json` を `dependency-audit` artifactへ保存する。
+
+### 検証とPRの範囲
+
+今回の変更対象は例外期限、本章、監査境界テストのみ。既存fixtureの期限を更新し、修正済みツリーの期限後テストを相対日時にした。加えてコミット対象の例外JSONそのものを読み、2026-10-27T00:00:00Zの1ms前・一致・1ms後を検査する。直前だけ許可し、一致・直後は拒否する。
+
+Windows・Node.js 24.13.0で以下を実施した。ログは兄弟 `security-recheck/` に保持し、実監査の再取得分は `.security-audit/` に保存した。
+
+| 検証 | 今回の結果 |
+| --- | --- |
+| `npm ci --no-audit --prefer-offline --progress=false` | 成功。package.json・lockfileのSHA-256は作業前後で一致 |
+| `npm run test:security` | 28/28成功。新advisory、版・配置・dev属性変更、不正JSON、通信・プロセス失敗の拒否も維持 |
+| `npm run lint` / `npx --no-install tsc --noEmit` | 成功。型検査は同じローカルtscを直接起動 |
+| `npm test` | 11ファイル・53/53成功。既知のVite設定形式の将来互換性警告は残る |
+| `npm run audit:security` | 終了0。production 0、full High 5、excepted 5、blocked 0。2026-10-19T01:00:56.457Z取得 |
+| `npm run build` | 成功。Next.js 16.3.8で静的生成完了 |
+| `npm run test:e2e -- --workers=1` | Chromium全16件成功。3001番の既存サーバーがないことを確認して実行 |
+| 例外・差分確認 | expires以外の例外JSONは旧mainと同一。変更は3ファイル、`git diff --check` 成功 |
+
+有効ESLint設定から `getRootDirs` を実行して、rootDir未指定・返り値cwd・glob呼び出し0回も確認した。通常環境のインストールはDNSのENOTFOUNDで中断し、検証用処理を制限外で再実行して成功した。依存やゲートの変更で回避していない。LinuxのGitHub Actionsによる結果と最終PR headの照合はPRのChecks／Actionsを正とする。
+
+PR操作前に既存のGitHub deploymentとstatusを確認した。Vercel botは過去のPR headをPreviewへ自動deployし、mainをProductionへdeployしている。文書の「Previewを使用しない」方針とは別に、自動連携の履歴がある。今回もbranch push／PR作成でPreviewが発生する可能性がある。本作業の範囲はdraft PRまでで、merge・mainへの直接push・本番deploy・Vercelや環境変数の設定変更・アラート却下は行わない。
