@@ -55,13 +55,13 @@ npm run test:e2e -- e2e/matchup-route-retention.spec.ts --grep "deletes a member
 
 `.github/workflows/ci.yml` はmainへのpushとmain向けPull Requestで、Node.js 24上で依存インストール、lint、型チェック、Vitest、監査ポリシーテスト、npm audit、build、Chromium E2Eを実行する。
 
-CIのインストールは `npm ci --no-audit --prefer-offline --progress=false`。インストールと監査を分け、テストの後、buildの前に `npm run audit:security` を実行する。スクリプトは `npm audit --omit=dev --audit-level=low --json` と `npm audit --include=dev --audit-level=low --json` の両方を実行し、本番依存の検出は例外なく失敗させる。全依存の検出も失敗対象とし、下記の開発依存例外だけを期限内に許可する。通信失敗、不正JSON、監査形式・件数の不整合、設定欠落は成功扱いにしない。`npm audit fix` や依存バージョンの自動変更は行わない。
+CIのインストールは `npm ci --no-audit --prefer-offline --progress=false`。インストールと監査を分け、テストの後、buildの前に `npm run audit:security` を実行する。スクリプトは `npm audit --omit=dev --audit-level=low --json` と `npm audit --include=dev --audit-level=low --json` の両方を実行し、本番・全依存の検出をすべて失敗させる。通信失敗、不正JSON、監査形式・件数の不整合、設定欠落は成功扱いにしない。`npm audit fix` や依存バージョンの自動変更は行わない。
 
-未修正の `GHSA-vfj7-8cjw-p6xm` に限り、[security-audit-exception.json](../security-audit-exception.json) のbraces 3.0.3、micromatch 4.0.8、fast-glob 3.3.1、@next/eslint-plugin-next 16.3.8、eslint-config-next 16.3.8を2026-10-20 09:00 JSTまで例外化する。lockfileの `dev: true`、版、ルートの `node_modules/<package>` 配置、viaの根拠が一致する場合だけ許可し、Criticalは許可しない。期限の自動延長はしない。対応手順・残るリスクは [対応結果](./security-audit-response-result.md) に記録する。
+[公式advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) が2026-10-23に撤回され、2026-10-26の再監査で当該検出がないことを確認したため、[security-audit-exception.json](../security-audit-exception.json) は `null` として例外を無効化した。旧期限は2026-10-27 09:00 JSTだったが延長しない。`null` は例外なしを意味し、設定ファイルの欠落や不正値は引き続き失敗する。旧5 package経路の再出現も新規findingも許可しない。現行の別findingと過去の対応は [対応結果](./security-audit-response-result.md) を参照。
 
 監査件数・例外適用をActionsログへ表示し、生のJSONを `.security-audit/production.json` と `full.json`、判定を `policy.json` に保存する。実行開始時にレポートを初期化し、失敗時に古い成功結果を残さない。最後の `if: always()` で3ファイルを `dependency-audit` artifactへ保存する。隠しディレクトリが既定で除外されるため `include-hidden-files: true` を指定し、対象パスを監査JSONだけに限定する。監査前の失敗でレポートがなければアップロードを省略する。
 
-参考にした `tennis-organizing-app` の独立監査・artifact保存・限定例外の方針を採用した。期限はMatchupLab固有で、参照先のFirebase SDK検証は追加していない。生の `npm audit --include=dev --audit-level=low` は例外判定をしないため、既知のHigh 5件が残る間は終了コード1になる。監査の公式仕様は [npm audit](https://docs.npmjs.com/cli/v11/commands/npm-audit/) を参照する。
+参考にした `tennis-organizing-app` の監査・artifact保存の方針を継続する。参照先のFirebase SDK検証は追加していない。生の `npm audit` とポリシー判定を区別して記録し、別findingがあればCIは引き続き失敗する。監査の公式仕様は [npm audit](https://docs.npmjs.com/cli/v11/commands/npm-audit/) を参照する。
 
 CIとPlaywrightのwebServer設定には旧Firebaseのダミー環境変数が残るが、現行ソースは参照せず、本番の必須設定ではない。
 

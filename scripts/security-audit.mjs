@@ -33,8 +33,8 @@ try {
   writeFileSync(`${reportDirectory}/policy.json`, `${JSON.stringify({
     ...result,
     checkedAt: new Date().toISOString(),
-    advisory: exception.advisory,
-    expires: exception.expires,
+    advisory: exception?.advisory ?? null,
+    expires: exception?.expires ?? null,
   }, null, 2)}\n`);
 
   console.log("Production vulnerabilities:", production.metadata?.vulnerabilities);

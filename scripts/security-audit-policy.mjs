@@ -47,7 +47,7 @@ export function evaluateAudits({ full, production, lock, exception, now = new Da
   if (!validAudit(full) || !validAudit(production)) {
     return { ok: false, blocked: ["Invalid or unavailable npm audit response"], excepted: [] };
   }
-  if (!isRecord(lock?.packages) || !validException(exception) ||
+  if (!isRecord(lock?.packages) || (exception !== null && !validException(exception)) ||
       !(now instanceof Date) || !Number.isFinite(now.getTime())) {
     return { ok: false, blocked: ["Invalid lockfile, exception configuration, or audit time"], excepted: [] };
   }
@@ -55,7 +55,8 @@ export function evaluateAudits({ full, production, lock, exception, now = new Da
   // Production findings are always blocking, even if the full audit could except them.
   const blocked = Object.keys(production.vulnerabilities).map((name) => `production: ${name}`);
   const excepted = [];
-  const exceptionActive = now.getTime() < Date.parse(exception.expires);
+  // JSON null disables the retired exception; missing/malformed configuration still fails closed.
+  const exceptionActive = exception !== null && now.getTime() < Date.parse(exception.expires);
 
   function allowed(name, seen = new Set()) {
     const item = full.vulnerabilities[name];
