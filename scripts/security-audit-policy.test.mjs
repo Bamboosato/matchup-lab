@@ -65,11 +65,28 @@ for (const [label, now, expected] of [
   test(`applies the expiry boundary ${label} the deadline`, () => {
     assert.equal(evaluateAudits({ ...fixture(), now }).ok, expected);
   });
-  test(`applies the committed exception ${label} the deadline`, () => {
-    assert.equal(recordedException.expires, expires);
-    assert.equal(evaluateAudits({ ...fixture(), exception: recordedException, now }).ok, expected);
+  test(`keeps the committed exception disabled ${label} the former deadline`, () => {
+    assert.equal(recordedException, null);
+    const input = { ...fixture(), exception: recordedException, now };
+    assert.deepEqual(evaluateAudits(input), {
+      ok: false, blocked: Object.keys(versions).map((name) => `full: ${name}`), excepted: [],
+    });
+    assert.deepEqual(evaluateAudits({ ...input, full: audit() }), { ok: true, blocked: [], excepted: [] });
   });
 }
+
+test("disabled exception blocks unrelated new findings at every severity in both audits", () => {
+  for (const severity of ["info", "low", "moderate", "high", "critical"]) {
+    const finding = audit({ unrelated: {
+      name: "unrelated", severity, nodes: ["node_modules/unrelated"],
+      via: [{ url: "https://example.com/new-advisory", severity }],
+    } });
+    for (const scope of ["full", "production"]) {
+      const input = { ...fixture(), full: audit(), production: audit(), exception: recordedException, [scope]: finding };
+      assert.deepEqual(evaluateAudits(input), { ok: false, blocked: [`${scope}: unrelated`], excepted: [] });
+    }
+  }
+});
 
 test("blocks a new advisory on the root or a recorded parent, even at low severity", () => {
   for (const name of ["braces", "eslint-config-next"]) {
@@ -194,10 +211,8 @@ function runAuditStub({ full = JSON.stringify(audit()), production = JSON.string
       copyFileSync(new URL(`./${name}`, import.meta.url), resolve(directory, name));
     }
     const input = fixture();
-    // Boundary timing is covered by fixed-time policy tests; this fixture tests process handling.
-    input.exception.expires = "2099-01-01T00:00:00Z";
     writeFileSync(resolve(directory, "package-lock.json"), JSON.stringify(input.lock));
-    writeFileSync(resolve(directory, "security-audit-exception.json"), JSON.stringify(input.exception));
+    writeFileSync(resolve(directory, "security-audit-exception.json"), JSON.stringify(recordedException));
     writeFileSync(resolve(directory, "production-input.json"), production);
     writeFileSync(resolve(directory, "full-input.json"), full);
     const stub = resolve(directory, "npm-stub.mjs");
@@ -243,8 +258,9 @@ test("runner accepts zero findings and saves both unfiltered audit reports", () 
 test("runner evaluates npm exit 1 rather than ignoring its vulnerability findings", () => {
   const full = JSON.stringify(fixture().full);
   const result = runAuditStub({ full, exit: 1 });
-  assert.equal(result.status, 0);
-  assert.equal(JSON.parse(result.reports.policy).excepted.length, 5);
+  assert.equal(result.status, 1);
+  assert.equal(JSON.parse(result.reports.policy).excepted.length, 0);
+  assert.equal(JSON.parse(result.reports.policy).blocked.length, 5);
   assert.equal(result.reports.full, full);
 });
 

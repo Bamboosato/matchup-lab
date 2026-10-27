@@ -1,6 +1,16 @@
 # npm audit検出への対応結果
 
-最新の再評価は [6. 2026-10-19の短期延長](#6-2026-10-19の短期延長) を参照。現在の例外期限は **2026-10-27 09:00 JST（2026-10-27T00:00:00Z）**。第1〜5章は2026-10-06時点の対応・検証記録であり、当時の期限と未実施事項を含む。
+最新の再評価は以下の2026-10-26記録を参照。**例外は無効（`security-audit-exception.json` は `null`）**。旧期限2026-10-27 09:00 JST（2026-10-27T00:00:00Z）の延長は行わない。第1〜5章は2026-10-06、第6章は2026-10-19時点の履歴であり、当時の検出・期限・未実施事項を含む。
+
+## 2026-10-26: 撤回済み例外の廃止
+
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) は公式情報で2026-10-23にwithdrawnとなった。最新main `3e5d56019752310e91b8c1d382c17ad204feecbd` のlockfileで `npm audit --omit=dev --json` と `npm audit --include=dev --json` を再取得し、当該braces advisoryとその旧5 package経路が検出されないことを確認した。この5経路は過去の1 advisoryに由来する履歴であり、現在の5脆弱性を意味しない。
+
+現在の別findingはproductionがCritical 2 / High 1の3 package（dompurify、next、zod）、fullがCritical 2 / High 2 / Moderate 2の6 package（上記とvite、vitest、@vitest/mocker）。生監査はいずれも終了1で、例外無効化後のポリシーもこれらを拒否する。Viteの既存PR #8を含め依存更新は今回の対象外とし、監査ゲートや閾値を緩和しない。
+
+設定の `null` を「例外なし」と解釈し、旧期限の直前・一致・直後も旧経路を拒否するテストと、両監査の全severityの新規finding拒否テストを追加した。空の監査のみ成功し、欠落設定・不正応答・通信失敗の拒否と生レポート保存は継続する。
+
+ローカルはNode 24.22.1 / npm 11.19.1で `npm ci --no-audit --prefer-offline --progress=false`、lint、`tsc --noEmit`、unit 53件、ポリシー29件、build、Chromium E2E 16件が成功した。`npm run audit:security` は上記の別findingで終了1（exceptedは空）。最終headのCIとPreviewはローカル結果と分けて対応するdraft PRに記録する。
 
 実施日: 2026-10-06。対象: MatchupLab。承認された [対応案](./security-audit-response-plan.md) に沿って依存更新とCI監査ポリシーを実装した。本書はPR作成前のローカル検証記録であり、以下の実施・未実施範囲はその時点を指す。GitHub上でのCI・マージ・配備の結果は、対応するPRとActionsの記録で確認する。
 
