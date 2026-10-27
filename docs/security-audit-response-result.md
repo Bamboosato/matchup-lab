@@ -13,8 +13,11 @@ PR #9のマージを確認し、main f5b1fd41203aecfcc1e02794177a82a7a1a84123 �
 | Zod（JSON取込・対戦条件検証） | 4.4.3 → 4.6.6 | GHSA-mrhx-c7xc-m3w5 |
 | Vitest → @vitest/mocker | 4.1.11 → 4.1.12 | GHSA-qxg6-89mg-rqv8 / GHSA-xp26-3454-mjgp |
 | Vitest → Vite | 8.3.2 → 8.3.5 | 既存PR #8のnpm生成lockfile差分を再利用。launch-editorとViteの6 advisoryを解消 |
+| Playwrightテスト基盤 | 1.60.0 → 1.61.0 | Ubuntu 26.04を初めてサポートする版。初回PR head CIのブラウザ取得失敗への限定互換修正 |
 
-Nextは完全固定指定のためmanifestの1行を更新した。その他は既存の親依存範囲内のlockfile更新とし、Nextのenv/SWC、Vitest内部package、PR #8のRolldown/OXC更新だけを伴う。npm生成時の無関係なpeer metadata・Tailwind任意依存の差分は採用せず、最終lockfileからのnpm ci成功を確認した。ESLint設定、React、TypeScript、Tailwind、監査ポリシー、例外null、workflowは変更しない。PR #8を変更・閉鎖せず、#9の例外廃止を再実装しない。
+Nextは完全固定指定のためmanifestの1行を更新した。その他は既存の親依存範囲内のlockfile更新とし、Nextのenv/SWC、Vitest内部package、PR #8のRolldown/OXC更新、および下記のPlaywright互換修正だけを伴う。npm生成時の無関係なpeer metadata・Tailwind任意依存の差分は採用せず、最終lockfileからのnpm ci成功を確認した。ESLint設定、React、TypeScript、Tailwind、監査ポリシー、例外null、workflowは変更しない。PR #8を変更・閉鎖せず、#9の例外廃止を再実装しない。
+
+初回head `c0df94e` のCIは監査・buildまで成功したが、ubuntu-latestが26.04へ移行しPlaywright 1.60.0のブラウザ取得が非対応として失敗した。既存の `^1.60.0` 範囲内でテスト基盤の3 entryだけを1.61.0へ更新した。[公式1.61リリースノート](https://playwright.dev/docs/release-notes#version-161) でUbuntu 26.04対応を確認しており、workflow・runner・環境設定は変更しない。
 
 到達性の調査ではZodは利用者が選択するJSONファイルの検証に使われる。DOMPurifyはPDFのtext/table出力からの脆弱なHTMLモード呼出を確認できず、Nextの画像は固定PNGかつunoptimizedでServer Actions/use cacheは見つからない。Vite/mockerは開発用で、これらの実際の攻撃到達性は未証明。依存の修正版への更新と回帰検証を行い、任意サイズの取込ファイルに対するメモリ上限まで保証するものではない。
 
