@@ -1,6 +1,27 @@
 # npm audit検出への対応結果
 
-最新の再評価は以下の2026-10-26記録を参照。**例外は無効（`security-audit-exception.json` は `null`）**。旧期限2026-10-27 09:00 JST（2026-10-27T00:00:00Z）の延長は行わない。第1〜5章は2026-10-06、第6章は2026-10-19時点の履歴であり、当時の検出・期限・未実施事項を含む。
+最新の再評価は以下の2026-10-27記録を参照。**例外は無効（`security-audit-exception.json` は `null`）**。旧期限2026-10-27 09:00 JST（2026-10-27T00:00:00Z）の延長は行わない。第1〜5章は2026-10-06、第6章は2026-10-19時点の履歴であり、当時の検出・期限・未実施事項を含む。
+
+## 2026-10-27: 残存依存findingの限定修正
+
+PR #9のマージを確認し、main f5b1fd41203aecfcc1e02794177a82a7a1a84123 から再監査した。productionはCritical 2 / High 1の3 package、fullはCritical 2 / High 2 / Moderate 2の6 packageで、10月26日の検出と一致した。これはnpm auditのpackage別finding数であり、GitHub alert数ではない。
+
+| 対象と経路 | 更新 | 根拠 |
+| --- | --- | --- |
+| Next.js（アプリ実行基盤） | 16.3.8 → 16.4.1 | GHSA-2464-fhr4-w9xw / GHSA-p3m5-59mp-jv5r / GHSA-673q-mjm6-r5xrの最初の修正版 |
+| jsPDFの任意依存DOMPurify | 3.4.16 → 3.4.17 | GHSA-cg2g-xh64-v4q7 / GHSA-mrv2-3pqr-j5jr / GHSA-c6gr-qvv4-5v3f |
+| Zod（JSON取込・対戦条件検証） | 4.4.3 → 4.6.6 | GHSA-mrhx-c7xc-m3w5 |
+| Vitest → @vitest/mocker | 4.1.11 → 4.1.12 | GHSA-qxg6-89mg-rqv8 / GHSA-xp26-3454-mjgp |
+| Vitest → Vite | 8.3.2 → 8.3.5 | 既存PR #8のnpm生成lockfile差分を再利用。launch-editorとViteの6 advisoryを解消 |
+| Playwrightテスト基盤 | 1.60.0 → 1.61.0 | Ubuntu 26.04を初めてサポートする版。初回PR head CIのブラウザ取得失敗への限定互換修正 |
+
+Nextは完全固定指定のためmanifestの1行を更新した。その他は既存の親依存範囲内のlockfile更新とし、Nextのenv/SWC、Vitest内部package、PR #8のRolldown/OXC更新、および下記のPlaywright互換修正だけを伴う。npm生成時の無関係なpeer metadata・Tailwind任意依存の差分は採用せず、最終lockfileからのnpm ci成功を確認した。ESLint設定、React、TypeScript、Tailwind、監査ポリシー、例外null、workflowは変更しない。PR #8を変更・閉鎖せず、#9の例外廃止を再実装しない。
+
+初回head `c0df94e` のCIは監査・buildまで成功したが、ubuntu-latestが26.04へ移行しPlaywright 1.60.0のブラウザ取得が非対応として失敗した。既存の `^1.60.0` 範囲内でテスト基盤の3 entryだけを1.61.0へ更新した。[公式1.61リリースノート](https://playwright.dev/docs/release-notes#version-161) でUbuntu 26.04対応を確認しており、workflow・runner・環境設定は変更しない。
+
+到達性の調査ではZodは利用者が選択するJSONファイルの検証に使われる。DOMPurifyはPDFのtext/table出力からの脆弱なHTMLモード呼出を確認できず、Nextの画像は固定PNGかつunoptimizedでServer Actions/use cacheは見つからない。Vite/mockerは開発用で、これらの実際の攻撃到達性は未証明。依存の修正版への更新と回帰検証を行い、任意サイズの取込ファイルに対するメモリ上限まで保証するものではない。
+
+PCS251873 / Node 24.22.1 / npm 11.19.1で、npm ci、lint、tsc --noEmit、unit 53件、policy 29件、build、Chromium E2E 16件が成功した。production/full auditは両方0件、exceptedは空。上限付きarray/setの64要素の拒否と通常入力、jsPDFのtext出力も小さな境界確認で成功した。PDFの実ダウンロード・任意サイズ入力の資源上限や全advisoryの攻撃再現までは確認していない。最終head CI・Previewはローカルと分けて今回のdraft PRへ記録する。過去の検出と検証記録は以下に保持する。
 
 ## 2026-10-26: 撤回済み例外の廃止
 
